@@ -20,6 +20,7 @@ const LAYER_WEAPON := 4
 const STYLE := {
 	"spear": "thrust", "halberd": "thrust", "pitchfork": "thrust",
 	"sword": "swing", "greatsword": "swing", "axe": "swing", "hammer": "swing", "stick": "swing",
+	"bow": "aim", "staff": "aim",
 }
 const COOLDOWN := {"thrust": 0.85, "swing": 1.1}
 
@@ -37,6 +38,8 @@ var attack_t := -1.0
 var attack_cd := 0.0
 var aim := 0.0
 var swing_dir := 1.0
+## Ranged weapons turn toward their target before they may fire.
+var aiming := false
 
 
 func setup(u: Unit, k: String, l: float, w: float, hand: Vector2) -> void:
@@ -132,13 +135,15 @@ func _physics_process(delta: float) -> void:
 	attack_cd -= delta
 	var tgt: Unit = holder.target
 	var has_tgt := tgt != null and is_instance_valid(tgt) and not tgt.dead
-	if attack_t < 0.0 and attack_cd <= 0.0 and style != "" and has_tgt:
+	aiming = style == "aim" and has_tgt
+	if attack_t < 0.0 and attack_cd <= 0.0 and style != "" and style != "aim" and has_tgt:
 		var reach := holder.radius + length + tgt.radius + 18.0
 		if holder.global_position.distance_to(tgt.global_position) < reach:
 			attack_t = 0.0
 			swing_dir = 1.0 if randf() < 0.5 else -1.0
 	if has_tgt:
-		aim = (tgt.global_position - holder.global_position).angle()
+		var lead := tgt.global_position + (tgt.linear_velocity * 0.25 if style == "aim" else Vector2.ZERO)
+		aim = (lead - holder.global_position).angle()
 	_update_pose(delta)
 
 
@@ -146,6 +151,11 @@ func _physics_process(delta: float) -> void:
 func _update_pose(delta: float) -> void:
 	var c := holder.global_position
 	var r := holder.radius
+	if aiming:
+		# hold the bow/staff out in front, pointed at the target
+		target_pos = c + Vector2.from_angle(aim) * r * 0.9
+		target_rot = aim
+		return
 	if attack_t < 0.0:
 		target_pos = holder.to_global(hand_local)
 		target_rot = holder.rotation + hold_angle
@@ -183,6 +193,17 @@ func _update_pose(delta: float) -> void:
 		target_pos = c + Vector2.from_angle(a + 0.6 * swing_dir) * r * 0.85
 
 
+## True when the ranged weapon points at the target closely enough to shoot.
+func ready_to_fire() -> bool:
+	return aiming and absf(wrapf(rotation - aim, -PI, PI)) < 0.26
+
+
+## Where projectiles leave the weapon, and their direction.
+func muzzle() -> Transform2D:
+	var d := Vector2.from_angle(rotation)
+	return Transform2D(rotation, global_position + d * (8.0 if kind == "bow" else length))
+
+
 func _end_attack() -> void:
 	attack_t = -1.0
 	attack_cd = COOLDOWN.get(style, 1.0) * randf_range(0.85, 1.2)
@@ -205,7 +226,7 @@ func _integrate_forces(state: PhysicsDirectBodyState2D) -> void:
 	# the push on the weapon is felt by the marble holding it
 	holder.apply_central_force(-f * 0.4)
 	var ea := wrapf(target_rot - state.transform.get_rotation(), -PI, PI)
-	var follow := holder.angular_velocity if attack_t < 0.0 else 0.0
+	var follow := holder.angular_velocity if attack_t < 0.0 and not aiming else 0.0
 	var inertia := 1.0 / maxf(state.inverse_inertia, 0.000001)
 	state.apply_torque(clampf((follow + ea * 30.0 - state.angular_velocity) * 30.0, -900.0, 900.0) * inertia)
 

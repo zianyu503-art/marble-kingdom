@@ -46,6 +46,8 @@ var stat_clash := 0
 var stat_hits := 0
 var stat_wall_arrows := 0
 var stat_escapes := 0
+var stat_shots := 0
+var stat_back_shots := 0
 
 
 func _ready() -> void:
@@ -74,6 +76,8 @@ func start(info: Dictionary) -> void:
 	stat_hits = 0
 	stat_wall_arrows = 0
 	stat_escapes = 0
+	stat_shots = 0
+	stat_back_shots = 0
 	_build_terrain()
 	_spawn_side(info["attackers"], fac_a, 0)
 	_spawn_side(info["defenders"], fac_d, 1)
@@ -269,15 +273,19 @@ func enemies_near(me: Unit, p: Vector2, r: float) -> Array:
 
 
 func fire(u: Unit, target: Unit) -> void:
-	var from := u.global_position
-	var lead := target.global_position + target.linear_velocity * 0.25
-	var dir := (lead - from).normalized()
+	# projectiles leave the bow/staff in the direction it is pointing
+	var m: Transform2D = u.weapon.muzzle()
+	var from := m.origin
+	var dir := m.x.normalized()
+	stat_shots += 1
+	if dir.dot(target.global_position - u.global_position) < 0.0:
+		stat_back_shots += 1
 	if u.ranged == "arrow":
-		projectiles.append({"p": from + dir * (u.radius + 4), "v": dir * 560.0, "dmg": u.dmg * 2.2, "from": u, "side": u.side, "k": "arrow", "life": 1.3})
+		projectiles.append({"p": from, "v": dir * 560.0, "dmg": u.dmg * 2.2, "from": u, "side": u.side, "k": "arrow", "life": 1.3})
 		game.sfx.play("bow", randf_range(0.9, 1.15), 0.05, -8.0)
 	else:
 		var fireball := u.soldier.level >= 3
-		projectiles.append({"p": from + dir * (u.radius + 4), "v": dir * (260.0 if fireball else 330.0), "dmg": u.dmg * (3.0 if fireball else 2.0),
+		projectiles.append({"p": from, "v": dir * (260.0 if fireball else 330.0), "dmg": u.dmg * (3.0 if fireball else 2.0),
 			"from": u, "side": u.side, "k": "fire" if fireball else "magic", "life": 2.2, "target": target})
 		game.sfx.play("magic", randf_range(0.9, 1.2), 0.05, -6.0)
 
@@ -371,7 +379,7 @@ func _check_end() -> void:
 func _finish(winner: int, retreat: bool) -> void:
 	ended = true
 	if OS.get_cmdline_user_args().has("--autostart"):
-		print("battle %s: weapon clashes=%d hits=%d arrows blocked by walls=%d unstuck=%d time=%.1fs" % [terrain, stat_clash, stat_hits, stat_wall_arrows, stat_escapes, elapsed])
+		print("battle %s: weapon clashes=%d hits=%d arrows blocked by walls=%d unstuck=%d shots=%d backward=%d time=%.1fs" % [terrain, stat_clash, stat_hits, stat_wall_arrows, stat_escapes, stat_shots, stat_back_shots, elapsed])
 	var wf := fac_a if winner == 0 else fac_d
 	_show_banner("RETREAT!" if retreat else "VICTORY", wf.color)
 	game.sfx.play("win" if not retreat else "horn")

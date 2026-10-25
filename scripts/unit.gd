@@ -128,7 +128,8 @@ func _physics_process(delta: float) -> void:
 		hp = minf(max_hp, hp + fac.regen() * delta)
 	if ranged != "":
 		ranged_cd -= delta
-		if ranged_cd <= 0.0 and has_los and target and is_instance_valid(target) and not target.dead:
+		var aimed := weapon != null and is_instance_valid(weapon) and weapon.ready_to_fire()
+		if ranged_cd <= 0.0 and aimed and has_los and target and is_instance_valid(target) and not target.dead:
 			if global_position.distance_to(target.global_position) < 460.0:
 				battle.fire(self, target)
 				ranged_cd = stats["cd"] * randf_range(0.85, 1.15)
@@ -219,7 +220,7 @@ func deal_damage(other: Unit, amount: float, kind: String) -> void:
 func take_damage(amount: float, from: Unit) -> float:
 	if dead:
 		return 0.0
-	var a := maxf(2.0, amount - fac.armor())
+	var a := maxf(2.0, amount - fac.armor() - float(stats.get("armor", 0.0)))
 	hp -= a
 	flash = 1.0
 	if from and is_instance_valid(from):

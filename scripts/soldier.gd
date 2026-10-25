@@ -6,20 +6,21 @@ extends RefCounted
 
 ## Base stats per unit type. weapon: shape drawn and used for collision.
 ## wlen/wwid: weapon length/width, dmg: damage per hit, spin: rad/s,
-## ranged: projectile kind ("" = melee only), cd: ranged cooldown in seconds.
+## ranged: projectile kind ("" = melee only), cd: ranged cooldown in seconds,
+## armor: flat damage removed from every hit.
 const TYPES := {
 	"fighter":    {"hp": 100, "r": 12.0, "speed": 1.0,  "spin": 6.0,  "weapon": "sword",     "wlen": 18.0, "wwid": 4.0, "dmg": 22.0, "ranged": "",      "cd": 0.0},
 	"footman":    {"hp": 130, "r": 12.0, "speed": 0.9,  "spin": 5.0,  "weapon": "sword",     "wlen": 18.0, "wwid": 4.0, "dmg": 22.0, "ranged": "",      "cd": 0.0, "shield": true},
 	"spearman":   {"hp": 110, "r": 12.0, "speed": 1.0,  "spin": 3.5,  "weapon": "spear",     "wlen": 32.0, "wwid": 3.0, "dmg": 24.0, "ranged": "",      "cd": 0.0},
-	"knight":     {"hp": 200, "r": 13.0, "speed": 0.9,  "spin": 5.0,  "weapon": "sword",     "wlen": 22.0, "wwid": 5.0, "dmg": 30.0, "ranged": "",      "cd": 0.0, "shield": true, "helmet": true},
+	"knight":     {"hp": 200, "r": 13.0, "speed": 0.9,  "spin": 5.0,  "weapon": "sword",     "wlen": 22.0, "wwid": 5.0, "dmg": 30.0, "ranged": "",      "cd": 0.0, "shield": true, "helmet": true, "armor": 4.0},
 	"berserker":  {"hp": 140, "r": 13.0, "speed": 1.15, "spin": 12.0, "weapon": "axe",       "wlen": 18.0, "wwid": 5.0, "dmg": 26.0, "ranged": "",      "cd": 0.0},
 	"hammerman":  {"hp": 230, "r": 15.0, "speed": 0.7,  "spin": 4.0,  "weapon": "hammer",    "wlen": 24.0, "wwid": 5.0, "dmg": 42.0, "ranged": "",      "cd": 0.0},
 	"archer":     {"hp": 80,  "r": 11.0, "speed": 0.9,  "spin": 1.5,  "weapon": "bow",       "wlen": 10.0, "wwid": 3.0, "dmg": 8.0,  "ranged": "arrow", "cd": 1.6},
 	"mage":       {"hp": 90,  "r": 11.0, "speed": 0.8,  "spin": 1.5,  "weapon": "staff",     "wlen": 14.0, "wwid": 3.0, "dmg": 8.0,  "ranged": "magic", "cd": 2.2},
 	"farmer":     {"hp": 70,  "r": 11.0, "speed": 1.0,  "spin": 5.0,  "weapon": "pitchfork", "wlen": 22.0, "wwid": 3.0, "dmg": 14.0, "ranged": "",      "cd": 0.0},
-	"kingsguard": {"hp": 260, "r": 13.0, "speed": 0.85, "spin": 4.0,  "weapon": "halberd",   "wlen": 28.0, "wwid": 4.0, "dmg": 34.0, "ranged": "",      "cd": 0.0, "helmet": true},
-	"captain":    {"hp": 260, "r": 14.0, "speed": 1.0,  "spin": 5.0,  "weapon": "sword",     "wlen": 22.0, "wwid": 5.0, "dmg": 32.0, "ranged": "",      "cd": 0.0, "helmet": true},
-	"king":       {"hp": 520, "r": 17.0, "speed": 0.8,  "spin": 4.0,  "weapon": "greatsword","wlen": 27.0, "wwid": 6.0, "dmg": 46.0, "ranged": "",      "cd": 0.0},
+	"kingsguard": {"hp": 320, "r": 13.0, "speed": 0.85, "spin": 4.0,  "weapon": "halberd",   "wlen": 28.0, "wwid": 4.0, "dmg": 34.0, "ranged": "",      "cd": 0.0, "helmet": true, "armor": 6.0},
+	"captain":    {"hp": 320, "r": 14.0, "speed": 1.0,  "spin": 5.0,  "weapon": "sword",     "wlen": 22.0, "wwid": 5.0, "dmg": 32.0, "ranged": "",      "cd": 0.0, "helmet": true, "shield": true, "armor": 4.0},
+	"king":       {"hp": 1400, "r": 19.0, "speed": 0.8, "spin": 4.0,  "weapon": "greatsword","wlen": 28.0, "wwid": 6.5, "dmg": 55.0, "ranged": "",      "cd": 0.0, "shield": true, "armor": 12.0},
 	"bandit":     {"hp": 100, "r": 12.0, "speed": 1.05, "spin": 7.0,  "weapon": "axe",       "wlen": 16.0, "wwid": 5.0, "dmg": 22.0, "ranged": "",      "cd": 0.0},
 	"villager":   {"hp": 70,  "r": 11.0, "speed": 1.0,  "spin": 5.0,  "weapon": "stick",     "wlen": 16.0, "wwid": 3.0, "dmg": 12.0, "ranged": "",      "cd": 0.0},
 }
