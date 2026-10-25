@@ -92,6 +92,7 @@ func setup(s: Soldier, f: Faction, b: Node, sd: int) -> void:
 
 
 ## Creates the weapon in the marble's hand; call after the marble is in the tree.
+## The weapon is driven toward its pose by force (see Weapon), not by a joint.
 func arm(root: Node) -> void:
 	# the hand sits on the marble's side, the weapon points forward and outward
 	var hand := Vector2.from_angle(1.2) * radius * 0.92
@@ -101,7 +102,6 @@ func arm(root: Node) -> void:
 	weapon.hold_angle = 0.5
 	weapon.setup(self, stats["weapon"], l, w, hand)
 	root.add_child(weapon)
-	weapon.attach(root, to_global(hand))
 
 
 func _integrate_forces(state: PhysicsDirectBodyState2D) -> void:

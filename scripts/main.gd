@@ -33,6 +33,16 @@ func _ready() -> void:
 
 ## Saves a screenshot every few real seconds, then quits (smoke tests).
 func _capture_loop(dir: String) -> void:
+	if "--burst" in OS.get_cmdline_user_args():
+		# wait for a field battle to be underway, then grab quick consecutive frames
+		while not (screen.focus == "battle" and screen.battle.elapsed > 2.5):
+			await get_tree().process_frame
+		screen._set_speed(1.0)
+		for i in 6:
+			await get_tree().create_timer(0.12, true, false, true).timeout
+			get_viewport().get_texture().get_image().save_png("%s/burst_%02d.png" % [dir, i])
+		get_tree().quit()
+		return
 	for i in 12:
 		await get_tree().create_timer(5.0, true, false, true).timeout
 		get_viewport().get_texture().get_image().save_png("%s/shot_%02d.png" % [dir, i])

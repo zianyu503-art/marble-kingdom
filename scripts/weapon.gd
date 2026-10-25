@@ -1,10 +1,11 @@
 class_name Weapon
 extends RigidBody2D
 
-## A weapon held by a marble. It is its own rigid body, pinned to the marble's
-## hand with a PinJoint2D and kept in its grip angle by a torque spring, so it
-## swings and gets knocked aside on impact, then recovers. When the marble
-## dies the joint is removed and the weapon drops to the ground.
+## A weapon held by a marble. It is its own rigid body, driven by force and
+## torque toward a target pose in the marble's hand (an "active" grip): it
+## follows the marble's spin, thrusts or swings at nearby enemies, and when
+## something blocks it the weapon really stops, pushes back on its marble,
+## then recovers. When the marble dies the grip is released and it drops.
 
 const INK := Color(0.07, 0.07, 0.09)
 const STEEL := Color(0.86, 0.88, 0.92)
@@ -14,20 +15,37 @@ const GOLD := Color("f2c230")
 const LAYER_WALL := 1
 const LAYER_BODY := 2
 const LAYER_WEAPON := 4
-const HIT_COOLDOWN := 0.25
+
+## Attack style per weapon: thrust (poke along the shaft) or swing (arc).
+const STYLE := {
+	"spear": "thrust", "halberd": "thrust", "pitchfork": "thrust",
+	"sword": "swing", "greatsword": "swing", "axe": "swing", "hammer": "swing", "stick": "swing",
+}
+const COOLDOWN := {"thrust": 0.85, "swing": 1.1}
 
 var holder: Unit
-var joint: PinJoint2D
+var kind := ""
+var style := ""
 var parts: Array = []
-var hold_angle := 0.4
+var hold_angle := 0.5
+var hand_local := Vector2.ZERO
 var length := 20.0
 var dropped := false
-var hit_times := {}
+var target_pos := Vector2.ZERO
+var target_rot := 0.0
+var attack_t := -1.0
+var attack_cd := 0.0
+var aim := 0.0
+var swing_dir := 1.0
 
 
-func setup(u: Unit, kind: String, l: float, w: float, hand: Vector2) -> void:
+func setup(u: Unit, k: String, l: float, w: float, hand: Vector2) -> void:
 	holder = u
+	kind = k
+	style = STYLE.get(k, "")
 	length = l
+	hand_local = hand
+	attack_cd = randf_range(0.2, 0.8)
 	gravity_scale = 0.0
 	mass = 0.22 * u.mass
 	linear_damp = 1.0
@@ -41,7 +59,7 @@ func setup(u: Unit, kind: String, l: float, w: float, hand: Vector2) -> void:
 	mat.bounce = 0.5
 	mat.friction = 0.2
 	physics_material_override = mat
-	_build(kind, l, w)
+	_build(k, l, w)
 	for p in parts:
 		if p.get("solid", true):
 			var cs := CollisionShape2D.new()
@@ -52,26 +70,17 @@ func setup(u: Unit, kind: String, l: float, w: float, hand: Vector2) -> void:
 	add_collision_exception_with(u)
 	global_position = u.to_global(hand)
 	rotation = u.rotation + hold_angle
+	target_pos = global_position
+	target_rot = rotation
 	body_shape_entered.connect(_on_hit)
 
 
-## Called once both bodies are in the tree.
-func attach(root: Node, hand_global: Vector2) -> void:
-	joint = PinJoint2D.new()
-	joint.global_position = hand_global
-	joint.softness = 0.0
-	joint.disable_collision = true
-	root.add_child(joint)
-	joint.node_a = joint.get_path_to(holder)
-	joint.node_b = joint.get_path_to(self)
-
-
 ## Weapon parts are built from the grip (origin) outward along +x.
-func _build(kind: String, l: float, w: float) -> void:
-	match kind:
+func _build(k: String, l: float, w: float) -> void:
+	match k:
 		"sword", "greatsword":
 			parts.append(_part(_rect(-5, -1.5, 6, 3), WOOD))
-			parts.append(_part(_rect(1, -w * 0.5 - 4, 3, w + 8), GOLD if kind == "greatsword" else DARK_STEEL))
+			parts.append(_part(_rect(1, -w * 0.5 - 4, 3, w + 8), GOLD if k == "greatsword" else DARK_STEEL))
 			parts.append(_part([Vector2(4, -w * 0.5), Vector2(l - 5, -w * 0.5), Vector2(l, 0), Vector2(l - 5, w * 0.5), Vector2(4, w * 0.5)], STEEL))
 		"spear":
 			parts.append(_part(_rect(-8, -1.8, l - 2, 3.6), WOOD))
@@ -116,15 +125,89 @@ func _rect(x: float, y: float, w: float, h: float) -> Array:
 	return [Vector2(x, y), Vector2(x + w, y), Vector2(x + w, y + h), Vector2(x, y + h)]
 
 
-func _integrate_forces(state: PhysicsDirectBodyState2D) -> void:
-	if dropped or not is_instance_valid(holder):
+func _physics_process(delta: float) -> void:
+	queue_redraw()
+	if dropped or not is_instance_valid(holder) or holder.dead:
 		return
-	# torque spring toward the grip angle; impacts knock the weapon away and it swings back
-	var want := holder.rotation + hold_angle
-	var err := wrapf(want - rotation, -PI, PI)
-	var rel_av := state.angular_velocity - holder.angular_velocity
+	attack_cd -= delta
+	var tgt: Unit = holder.target
+	var has_tgt := tgt != null and is_instance_valid(tgt) and not tgt.dead
+	if attack_t < 0.0 and attack_cd <= 0.0 and style != "" and has_tgt:
+		var reach := holder.radius + length + tgt.radius + 18.0
+		if holder.global_position.distance_to(tgt.global_position) < reach:
+			attack_t = 0.0
+			swing_dir = 1.0 if randf() < 0.5 else -1.0
+	if has_tgt:
+		aim = (tgt.global_position - holder.global_position).angle()
+	_update_pose(delta)
+
+
+## Works out where the weapon should be this frame (thrust/swing animation).
+func _update_pose(delta: float) -> void:
+	var c := holder.global_position
+	var r := holder.radius
+	if attack_t < 0.0:
+		target_pos = holder.to_global(hand_local)
+		target_rot = holder.rotation + hold_angle
+		return
+	attack_t += delta
+	var ext := 0.0
+	var off := 0.0
+	if style == "thrust":
+		# wind up (pull back), jab, recover
+		if attack_t < 0.15:
+			ext = lerpf(0.0, -8.0, attack_t / 0.15)
+		elif attack_t < 0.23:
+			ext = lerpf(-8.0, length * 0.65, (attack_t - 0.15) / 0.08)
+		elif attack_t < 0.5:
+			ext = lerpf(length * 0.65, 0.0, (attack_t - 0.23) / 0.27)
+		else:
+			_end_attack()
+			return
+		var hand := c + Vector2.from_angle(aim + 0.35) * r * 0.85
+		target_rot = aim
+		target_pos = hand + Vector2.from_angle(aim) * ext
+	else:
+		# raise to one side, sweep across the target, recover
+		if attack_t < 0.18:
+			off = lerpf(0.0, -1.3, attack_t / 0.18)
+		elif attack_t < 0.32:
+			off = lerpf(-1.3, 1.3, (attack_t - 0.18) / 0.14)
+		elif attack_t < 0.55:
+			off = lerpf(1.3, 0.0, (attack_t - 0.32) / 0.23)
+		else:
+			_end_attack()
+			return
+		var a := aim + off * swing_dir
+		target_rot = a
+		target_pos = c + Vector2.from_angle(a + 0.6 * swing_dir) * r * 0.85
+
+
+func _end_attack() -> void:
+	attack_t = -1.0
+	attack_cd = COOLDOWN.get(style, 1.0) * randf_range(0.85, 1.2)
+
+
+func _integrate_forces(state: PhysicsDirectBodyState2D) -> void:
+	if dropped or not is_instance_valid(holder) or holder.dead:
+		return
+	var p := state.transform.origin
+	var e := target_pos - p
+	if e.length() > 90.0:
+		# knocked far away (e.g. wedged behind a wall): snap back into the hand
+		state.transform = Transform2D(target_rot, target_pos)
+		state.linear_velocity = holder.linear_velocity
+		return
+	var want_v := holder.linear_velocity + e * 40.0
+	var f := (want_v - state.linear_velocity) * mass * 30.0
+	f = f.limit_length(mass * 22000.0)
+	state.apply_central_force(f)
+	# the push on the weapon is felt by the marble holding it
+	holder.apply_central_force(-f * 0.4)
+	var ea := wrapf(target_rot - state.transform.get_rotation(), -PI, PI)
+	var follow := holder.angular_velocity if attack_t < 0.0 else 0.0
 	var inertia := 1.0 / maxf(state.inverse_inertia, 0.000001)
-	state.apply_torque((err * 260.0 - rel_av * 22.0) * inertia)
+	state.apply_torque(clampf((follow + ea * 30.0 - state.angular_velocity) * 30.0, -900.0, 900.0) * inertia)
 
 
 func _on_hit(_rid: RID, body: Node, body_shape_index: int, _local: int) -> void:
@@ -137,7 +220,7 @@ func _on_hit(_rid: RID, body: Node, body_shape_index: int, _local: int) -> void:
 		if body_shape_index == 0:
 			var tip_speed := absf(angular_velocity) * length * 0.7
 			var rel := (linear_velocity - u.linear_velocity).length() + tip_speed
-			holder.deal_damage(u, holder.dmg * clampf(0.4 + rel / 360.0, 0.4, 1.8), "melee")
+			holder.deal_damage(u, holder.dmg * clampf(0.25 + rel / 650.0, 0.25, 1.1), "melee")
 		else:
 			holder.battle.clang(global_position, true)
 	elif body is Weapon:
@@ -146,23 +229,17 @@ func _on_hit(_rid: RID, body: Node, body_shape_index: int, _local: int) -> void:
 			holder.battle.clang(global_position, true)
 
 
-## Breaks the grip: the weapon flies off a little and lies on the ground.
+## Releases the grip: the weapon flies off a little and lies on the ground.
 func drop() -> void:
 	if dropped:
 		return
 	dropped = true
-	if joint and is_instance_valid(joint):
-		joint.queue_free()
 	collision_layer = 0
 	collision_mask = LAYER_WALL
 	linear_damp = 4.0
 	angular_damp = 4.0
 	apply_central_impulse(Vector2.from_angle(randf() * TAU) * 30.0 * mass)
 	modulate = Color(0.8, 0.8, 0.8)
-
-
-func _physics_process(_delta: float) -> void:
-	queue_redraw()
 
 
 func _draw() -> void:

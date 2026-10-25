@@ -23,11 +23,12 @@ remake, built in Godot 4.6, and is not affiliated with Lost Marbles.
 - **Battles**: when two enemy armies meet, or an army attacks a town, the battle opens on a
   terrain picked from that spot on the map: field, forest, mountain, river with bridges,
   castle, or town.
-- **Marble physics**: every marble is a `RigidBody2D`. Its weapon is a separate rigid body
-  pinned to the marble's hand with a `PinJoint2D` and held at its grip angle by a torque
-  spring, so a weapon swings and gets knocked aside on impact, then recovers. When a marble
-  dies, the joint breaks and the weapon drops to the ground. Weapons block other weapons and
-  walls; a weapon touching an enemy body does damage that grows with impact speed. Arrows and
+- **Marble physics**: every marble is a `RigidBody2D`. Its weapon is a separate rigid body,
+  driven by force and torque toward its pose in the marble's hand. It follows the marble's
+  spin, and when an enemy is in reach it attacks: spears, halberds and pitchforks **thrust**,
+  while swords, axes and hammers **swing**. When something blocks a weapon it really stops,
+  pushes back on its marble, then recovers; when a marble dies its weapon drops to the
+  ground. A weapon touching an enemy body does damage that grows with impact speed. Arrows and
   magic raycast against walls (arrows stick in them). Marbles use ray-based context steering
   to walk around walls, and work themselves free when stuck.
 - **Units**: King, Kingsguard, Captain, Fighter, Footman, Spearman, Knight, Berserker,
@@ -52,6 +53,16 @@ remake, built in Godot 4.6, and is not affiliated with Lost Marbles.
 | 1 / 2 / 4 | Speed 1x / 2x / 4x |
 | M | Mute |
 | Esc | Back to the menu |
+
+## Download
+
+From [Releases](https://github.com/zianyu503-art/marble-kingdom/releases):
+
+- **macOS** (`MarbleKingdom-macOS.zip`, universal): unzip it, then the first time **right-click
+  the app → Open** (it is not notarised).
+- **Windows** (`MarbleKingdom-Windows.zip`): unzip and run `MarbleKingdom.exe`. If SmartScreen
+  warns you, click "More info" → "Run anyway".
+- **Web**: play in the browser via the link above.
 
 ## Run
 
