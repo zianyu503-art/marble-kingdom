@@ -6,7 +6,7 @@ remake, built in Godot 4.6, and is not affiliated with Lost Marbles.
 
 一個仿照 Lost Marbles《Marble Kingdoms》系列製作的彈珠王國戰爭模擬遊戲（Godot 4.6）。
 
-**▶ Play in the browser:** https://zianyu503-art.github.io/marble-kingdom/
+**▶ Play in the browser:** https://zianyu503-art.github.io/marble-kingdom/  
 **⬇ Downloads:** [Releases](https://github.com/zianyu503-art/marble-kingdom/releases)
 
 ## How it plays
