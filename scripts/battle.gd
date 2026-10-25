@@ -20,6 +20,8 @@ var fac_a: Faction
 var fac_d: Faction
 var units: Array = []
 var corpses: Array = []
+## Arrows stuck in walls: {p, d, life}
+var stuck: Array = []
 var projectiles: Array = []
 var fx: Array = []
 var texts: Array = []
@@ -42,6 +44,8 @@ var start_counts := [0, 0]
 ## Debug counters: weapon-on-weapon clashes and weapon-on-body hits.
 var stat_clash := 0
 var stat_hits := 0
+var stat_wall_arrows := 0
+var stat_escapes := 0
 
 
 func _ready() -> void:
@@ -68,6 +72,8 @@ func start(info: Dictionary) -> void:
 	ended = false
 	stat_clash = 0
 	stat_hits = 0
+	stat_wall_arrows = 0
+	stat_escapes = 0
 	_build_terrain()
 	_spawn_side(info["attackers"], fac_a, 0)
 	_spawn_side(info["defenders"], fac_d, 1)
@@ -84,6 +90,7 @@ func _clear() -> void:
 		c.queue_free()
 	units.clear()
 	corpses.clear()
+	stuck.clear()
 	projectiles.clear()
 	fx.clear()
 	texts.clear()
@@ -217,6 +224,7 @@ func _spawn_side(soldiers: Array, f: Faction, side: int) -> void:
 		u.setup(s, f, self, side)
 		u.linear_velocity = Vector2(1 if side == 0 else -1, 0) * 60.0
 		unit_root.add_child(u)
+		u.arm(unit_root)
 		units.append(u)
 
 
@@ -363,7 +371,7 @@ func _check_end() -> void:
 func _finish(winner: int, retreat: bool) -> void:
 	ended = true
 	if OS.get_cmdline_user_args().has("--autostart"):
-		print("battle %s: weapon clashes=%d hits=%d time=%.1fs" % [terrain, stat_clash, stat_hits, elapsed])
+		print("battle %s: weapon clashes=%d hits=%d arrows blocked by walls=%d unstuck=%d time=%.1fs" % [terrain, stat_clash, stat_hits, stat_wall_arrows, stat_escapes, elapsed])
 	var wf := fac_a if winner == 0 else fac_d
 	_show_banner("RETREAT!" if retreat else "VICTORY", wf.color)
 	game.sfx.play("win" if not retreat else "horn")
@@ -393,8 +401,21 @@ func _physics_process(delta: float) -> void:
 			if is_instance_valid(tg) and not tg.dead:
 				var want: Vector2 = (tg.global_position - pr["p"]).normalized() * pr["v"].length()
 				pr["v"] = pr["v"].lerp(want, 0.06)
+		var from_p: Vector2 = pr["p"]
 		pr["p"] += pr["v"] * delta
 		var hit := false
+		var q := PhysicsRayQueryParameters2D.create(from_p, pr["p"], Weapon.LAYER_WALL)
+		var wall := get_world_2d().direct_space_state.intersect_ray(q)
+		if not wall.is_empty():
+			if pr["k"] == "fire":
+				var src0 = pr["from"]
+				_explode(wall["position"], pr["dmg"], pr["side"], src0 if is_instance_valid(src0) and not src0.dead else null)
+			elif pr["k"] == "arrow":
+				stat_wall_arrows += 1
+				stuck.append({"p": wall["position"], "d": pr["v"].normalized(), "life": 4.0})
+				game.sfx.play("hit", 2.0, 0.05, -14.0)
+			projectiles.remove_at(i)
+			continue
 		for u in units:
 			if u.dead or u.side == pr["side"]:
 				continue
@@ -434,6 +455,10 @@ func _process(delta: float) -> void:
 		f["v"] *= 0.9
 		if f["life"] <= 0.0:
 			fx.remove_at(i)
+	for i in range(stuck.size() - 1, -1, -1):
+		stuck[i]["life"] -= delta
+		if stuck[i]["life"] <= 0.0:
+			stuck.remove_at(i)
 	for i in range(texts.size() - 1, -1, -1):
 		var t: Dictionary = texts[i]
 		t["life"] -= delta
@@ -527,6 +552,11 @@ func _draw() -> void:
 
 func _draw_overlay() -> void:
 	var o := overlay
+	for a in stuck:
+		var d: Vector2 = a["d"]
+		var p0: Vector2 = a["p"] - d * 12.0
+		o.draw_line(p0, a["p"] + d * 2.0, Color(0.07, 0.07, 0.09, clampf(a["life"], 0, 1)), 2)
+		o.draw_line(p0, p0 + d * 4 + d.orthogonal() * 3, Color(1, 1, 1, clampf(a["life"], 0, 1)), 1.5)
 	for pr in projectiles:
 		var p: Vector2 = pr["p"]
 		match pr["k"]:

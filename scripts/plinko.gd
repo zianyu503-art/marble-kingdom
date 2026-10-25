@@ -47,9 +47,10 @@ func start(f: Faction, head: String, sub: String, opts: Array) -> void:
 	var row := 0
 	var y := 150.0
 	while y < 560.0:
+		# keep pegs well clear of the side walls so the marble can never wedge there
 		var off := 30.0 if row % 2 == 0 else 0.0
-		var x := 30.0 + off
-		while x < SIZE.x - 20:
+		var x := 45.0 + off
+		while x <= SIZE.x - 45.0:
 			_peg(Vector2(x, y))
 			x += 60.0
 		y += 52.0
@@ -113,7 +114,8 @@ func _physics_process(delta: float) -> void:
 	if marble.linear_velocity.length() < 8.0:
 		still_time += delta
 		if still_time > 1.0 and marble.position.y < BIN_TOP:
-			marble.apply_central_impulse(Vector2(randf_range(-80, 80), -60))
+			var to_center := signf(SIZE.x * 0.5 - marble.position.x)
+			marble.apply_central_impulse(Vector2(to_center * randf_range(60, 120), -50))
 			still_time = 0.0
 	else:
 		still_time = 0.0

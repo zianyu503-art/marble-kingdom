@@ -23,11 +23,13 @@ remake, built in Godot 4.6, and is not affiliated with Lost Marbles.
 - **Battles**: when two enemy armies meet, or an army attacks a town, the battle opens on a
   terrain picked from that spot on the map: field, forest, mountain, river with bridges,
   castle, or town.
-- **Marble physics**: every marble is a `RigidBody2D`. Its weapon is part of the same body
-  (its own `ConvexPolygonShape2D` parts), so weapons physically block other weapons, scrape
-  along walls and shove enemies. Spin comes from torque, so weapon clashes can stall or
-  reverse it. Damage happens when a weapon touches an enemy body and grows with impact speed.
-  Arrows, magic missiles and fireballs work the same way.
+- **Marble physics**: every marble is a `RigidBody2D`. Its weapon is a separate rigid body
+  pinned to the marble's hand with a `PinJoint2D` and held at its grip angle by a torque
+  spring, so a weapon swings and gets knocked aside on impact, then recovers. When a marble
+  dies, the joint breaks and the weapon drops to the ground. Weapons block other weapons and
+  walls; a weapon touching an enemy body does damage that grows with impact speed. Arrows and
+  magic raycast against walls (arrows stick in them). Marbles use ray-based context steering
+  to walk around walls, and work themselves free when stuck.
 - **Units**: King, Kingsguard, Captain, Fighter, Footman, Spearman, Knight, Berserker,
   Hammerman, Archer, Mage, Farmer, Bandit, Villager.
 - **XP and levels**: kills give XP. A level-up raises HP, damage, speed and size, and a
