@@ -74,16 +74,34 @@ var next_id := 1
 var camp_timer := 25.0
 var bg: ColorRect
 var ink_layer: Node2D
+## The parchment, territories and fixed landmarks are rendered once into this
+## viewport and shown as a texture; it is re-rendered only when borders change.
+var bake_vp: SubViewport
+var static_layer: Node2D
 
 
 func _ready() -> void:
+	bake_vp = SubViewport.new()
+	bake_vp.size = Vector2i(SIZE)
+	bake_vp.disable_3d = true
+	bake_vp.transparent_bg = false
+	bake_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	add_child(bake_vp)
 	bg = ColorRect.new()
 	bg.size = SIZE
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://scripts/territory.gdshader")
 	bg.material = mat
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
+	bake_vp.add_child(bg)
+	static_layer = Node2D.new()
+	static_layer.draw.connect(_draw_static)
+	bake_vp.add_child(static_layer)
+	var baked := Sprite2D.new()
+	baked.centered = false
+	baked.texture = bake_vp.get_texture()
+	baked.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	add_child(baked)
 	ink_layer = Node2D.new()
 	ink_layer.draw.connect(_draw_ink)
 	add_child(ink_layer)
@@ -215,6 +233,8 @@ func update_territory() -> void:
 	m.set_shader_parameter("cols", cols)
 	m.set_shader_parameter("rads", rads)
 	m.set_shader_parameter("owners", owners)
+	static_layer.queue_redraw()
+	bake_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
 ## Which battle terrain applies at point p.
@@ -473,8 +493,9 @@ func bounce_from(a: Army, p: Vector2) -> void:
 
 # --------------------------------------------------------------- drawing
 
-func _draw_ink() -> void:
-	var c := ink_layer
+## River, roads, mountains, forests and camps (baked, see bake_vp).
+func _draw_static() -> void:
+	var c := static_layer
 	var ink := Ink.BLACK
 	# river
 	if river.size() > 1:
@@ -509,6 +530,10 @@ func _draw_ink() -> void:
 		c.draw_polyline(PackedVector2Array([p + Vector2(-12, 8), p + Vector2(0, -10), p + Vector2(12, 8), p + Vector2(-12, 8)]), ink, 1.6)
 		c.draw_line(p + Vector2(0, -10), p + Vector2(0, -18), ink, 1.5)
 		c.draw_colored_polygon(PackedVector2Array([p + Vector2(0, -18), p + Vector2(8, -15), p + Vector2(0, -12)]), Color("b03030"))
+
+
+func _draw_ink() -> void:
+	var c := ink_layer
 	for s in settlements:
 		_draw_settlement(c, s)
 	for a in armies:

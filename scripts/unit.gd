@@ -115,6 +115,10 @@ func _integrate_forces(state: PhysicsDirectBodyState2D) -> void:
 func _physics_process(delta: float) -> void:
 	if dead:
 		return
+	# only redraw while the look changes (hit flash, spectral sword); the body
+	# itself is static and just rotates with the node transform
+	if flash > 0.0 or fac.has("spectral"):
+		queue_redraw()
 	flash = maxf(0.0, flash - delta * 6.0)
 	retarget -= delta
 	if retarget <= 0.0:
@@ -138,7 +142,6 @@ func _physics_process(delta: float) -> void:
 		var tip := global_position + Vector2.from_angle(spectral_angle) * (radius + 22.0)
 		for u in battle.enemies_near(self, tip, 10.0):
 			deal_damage(u, dmg * 0.5, "spectral")
-	queue_redraw()
 
 
 func _wall_ray(from: Vector2, to: Vector2) -> Dictionary:

@@ -43,16 +43,30 @@ func _capture_loop(dir: String) -> void:
 			get_viewport().get_texture().get_image().save_png("%s/burst_%02d.png" % [dir, i])
 		get_tree().quit()
 		return
-	for i in 12:
+	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
+	var perf := {"cpu": 0.0, "phys": 0.0, "gpu": 0.0, "n": 0}
+	var sample := func():
+		perf["cpu"] += Performance.get_monitor(Performance.TIME_PROCESS)
+		perf["phys"] += Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)
+		perf["gpu"] += RenderingServer.viewport_get_measured_render_time_gpu(get_viewport().get_viewport_rid())
+		perf["n"] += 1
+	get_tree().process_frame.connect(sample)
+	var mem0 := Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0
+	var count := 36 if "--long" in OS.get_cmdline_user_args() else 12
+	for i in count:
 		await get_tree().create_timer(5.0, true, false, true).timeout
 		get_viewport().get_texture().get_image().save_png("%s/shot_%02d.png" % [dir, i])
+		print("mem %3ds: %.0f MB, objects %d, nodes %d" % [(i + 1) * 5, Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0,
+			Performance.get_monitor(Performance.OBJECT_COUNT), Performance.get_monitor(Performance.OBJECT_NODE_COUNT)])
+	var n: float = maxf(1.0, perf["n"])
+	print("perf: process %.2f ms  physics %.2f ms  frames %d  memory %.0f MB -> %.0f MB" % [perf["cpu"] / n * 1000.0, perf["phys"] / n * 1000.0, perf["n"], mem0, Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0])
 	get_tree().quit()
 
 
 func _clear() -> void:
 	get_tree().paused = false
 	Engine.time_scale = 1.0
-	Engine.physics_ticks_per_second = 240
+	Engine.physics_ticks_per_second = 120 if Game.low_power() else 240
 	if screen:
 		screen.queue_free()
 		screen = null

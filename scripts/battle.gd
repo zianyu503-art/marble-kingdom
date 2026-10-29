@@ -38,6 +38,9 @@ var banner_col := Color.WHITE
 var title := ""
 var settlement := ""
 var unit_root: Node2D
+var ground: Node2D
+var corpse_layer: Node2D
+var shadow_layer: Node2D
 var static_root: Node2D
 var overlay: Node2D
 var start_counts := [0, 0]
@@ -51,6 +54,15 @@ var stat_back_shots := 0
 
 
 func _ready() -> void:
+	ground = Node2D.new()
+	ground.draw.connect(_draw_ground)
+	add_child(ground)
+	corpse_layer = Node2D.new()
+	corpse_layer.draw.connect(_draw_corpses)
+	add_child(corpse_layer)
+	shadow_layer = Node2D.new()
+	shadow_layer.draw.connect(_draw_shadows)
+	add_child(shadow_layer)
 	static_root = Node2D.new()
 	add_child(static_root)
 	unit_root = Node2D.new()
@@ -82,6 +94,8 @@ func start(info: Dictionary) -> void:
 	_spawn_side(info["attackers"], fac_a, 0)
 	_spawn_side(info["defenders"], fac_d, 1)
 	start_counts = [_alive(0), _alive(1)]
+	ground.queue_redraw()
+	corpse_layer.queue_redraw()
 	_show_banner("ONWARD!", Color.WHITE)
 	game.sfx.play("horn")
 	running = true
@@ -314,6 +328,7 @@ func on_hit(victim: Unit, from: Unit, amount: float) -> void:
 
 func on_unit_died(u: Unit, killer: Unit) -> void:
 	corpses.append({"p": u.global_position, "r": u.radius, "c": u.color.darkened(0.55), "rot": u.rotation})
+	corpse_layer.queue_redraw()
 	for i in 14:
 		fx.append({"p": u.global_position, "v": Vector2.from_angle(randf() * TAU) * randf_range(60, 260), "life": 0.6, "max": 0.6, "c": u.color, "s": 4.0})
 	u.soldier.hp = 0.0
@@ -473,16 +488,18 @@ func _process(delta: float) -> void:
 		t["p"].y -= 22.0 * delta
 		if t["life"] <= 0.0:
 			texts.remove_at(i)
-	queue_redraw()
+	shadow_layer.queue_redraw()
 	overlay.queue_redraw()
 
 
 # --------------------------------------------------------------- drawing
 
-func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, SIZE), GRASS)
+## Static terrain: drawn once per battle, not every frame.
+func _draw_ground() -> void:
+	var g := ground
+	g.draw_rect(Rect2(Vector2.ZERO, SIZE), GRASS)
 	if floor_rect.size.x > 0:
-		draw_rect(floor_rect, STONE if terrain == "castle" else Color("d8c79e"))
+		g.draw_rect(floor_rect, STONE if terrain == "castle" else Color("d8c79e"))
 	for d in decor:
 		match d["k"]:
 			"tuft":
@@ -490,72 +507,79 @@ func _draw() -> void:
 				if floor_rect.has_point(p):
 					continue
 				var s: float = d["s"] * 4.0
-				draw_line(p, p + Vector2(-s * 0.6, -s), GRASS_DARK, 1.4)
-				draw_line(p, p + Vector2(0, -s * 1.3), GRASS_DARK, 1.4)
-				draw_line(p, p + Vector2(s * 0.6, -s), GRASS_DARK, 1.4)
+				g.draw_line(p, p + Vector2(-s * 0.6, -s), GRASS_DARK, 1.4)
+				g.draw_line(p, p + Vector2(0, -s * 1.3), GRASS_DARK, 1.4)
+				g.draw_line(p, p + Vector2(s * 0.6, -s), GRASS_DARK, 1.4)
 			"flower":
 				if not floor_rect.has_point(d["p"]):
-					draw_circle(d["p"], 2.2, d["c"])
+					g.draw_circle(d["p"], 2.2, d["c"])
 			"bush":
-				Ink.circle(self, d["p"], d["s"], Color("8cc463"), 1.4)
+				Ink.circle(g, d["p"], d["s"], Color("8cc463"), 1.4)
 			"cobble":
 				var cr := Rect2(d["p"], Vector2(d["s"], d["s"] * 0.7))
-				draw_rect(cr, Color(0.6, 0.58, 0.55, 0.5), false, 1.0)
+				g.draw_rect(cr, Color(0.6, 0.58, 0.55, 0.5), false, 1.0)
 	for o in obstacles:
 		match o["k"]:
 			"water":
 				var r: Rect2 = o["r"]
-				draw_rect(r, WATER)
+				g.draw_rect(r, WATER)
 				for k in int(r.size.y / 26):
 					var y := r.position.y + 13 + k * 26
-					draw_arc(Vector2(r.position.x + 25, y), 7, PI * 1.1, PI * 1.9, 6, Color("5a8fc9"), 1.5)
-					draw_arc(Vector2(r.position.x + 55, y + 10), 7, PI * 1.1, PI * 1.9, 6, Color("5a8fc9"), 1.5)
-				draw_line(r.position, r.position + Vector2(0, r.size.y), Ink.BLACK, 2.5)
-				draw_line(r.position + Vector2(r.size.x, 0), r.end, Ink.BLACK, 2.5)
+					g.draw_arc(Vector2(r.position.x + 25, y), 7, PI * 1.1, PI * 1.9, 6, Color("5a8fc9"), 1.5)
+					g.draw_arc(Vector2(r.position.x + 55, y + 10), 7, PI * 1.1, PI * 1.9, 6, Color("5a8fc9"), 1.5)
+				g.draw_line(r.position, r.position + Vector2(0, r.size.y), Ink.BLACK, 2.5)
+				g.draw_line(r.position + Vector2(r.size.x, 0), r.end, Ink.BLACK, 2.5)
 			"bridge":
 				var r: Rect2 = o["r"]
-				draw_rect(r, Color("c79a62"))
+				g.draw_rect(r, Color("c79a62"))
 				for k in int(r.size.x / 12):
 					var x := r.position.x + k * 12
-					draw_line(Vector2(x, r.position.y), Vector2(x, r.end.y), Color("8a5f33"), 1.5)
-				draw_line(r.position, r.position + Vector2(r.size.x, 0), Ink.BLACK, 3)
-				draw_line(r.position + Vector2(0, r.size.y), r.end, Ink.BLACK, 3)
+					g.draw_line(Vector2(x, r.position.y), Vector2(x, r.end.y), Color("8a5f33"), 1.5)
+				g.draw_line(r.position, r.position + Vector2(r.size.x, 0), Ink.BLACK, 3)
+				g.draw_line(r.position + Vector2(0, r.size.y), r.end, Ink.BLACK, 3)
 			"wall":
-				Ink.box(self, o["r"], Color("cfc9bb"), 2.5)
+				Ink.box(g, o["r"], Color("cfc9bb"), 2.5)
 			"house":
 				var r: Rect2 = o["r"]
-				Ink.box(self, r, Color("b9553f"), 2.5)
-				draw_line(r.position + Vector2(0, r.size.y * 0.5), r.position + Vector2(r.size.x, r.size.y * 0.5), Ink.BLACK, 2)
+				Ink.box(g, r, Color("b9553f"), 2.5)
+				g.draw_line(r.position + Vector2(0, r.size.y * 0.5), r.position + Vector2(r.size.x, r.size.y * 0.5), Ink.BLACK, 2)
 				for k in 5:
 					var x := r.position.x + (k + 0.5) * r.size.x / 5
-					draw_line(Vector2(x, r.position.y + 3), Vector2(x, r.end.y - 3), Color(0, 0, 0, 0.25), 1)
+					g.draw_line(Vector2(x, r.position.y + 3), Vector2(x, r.end.y - 3), Color(0, 0, 0, 0.25), 1)
 			"fence":
-				Ink.box(self, o["r"], Color("a8763f"), 2)
+				Ink.box(g, o["r"], Color("a8763f"), 2)
 			"throne":
 				var r: Rect2 = o["r"]
-				Ink.box(self, r, Color("b33a3a"), 2)
-				draw_rect(r.grow(-6), Color("ffcf33"), false, 2)
+				Ink.box(g, r, Color("b33a3a"), 2)
+				g.draw_rect(r.grow(-6), Color("ffcf33"), false, 2)
 			"tree":
-				Ink.circle(self, o["p"] + Vector2(3, 4), o["rad"], Color(0, 0, 0, 0.15), 0)
-				draw_colored_polygon(o["pts"], Color("7fb85a"))
+				Ink.circle(g, o["p"] + Vector2(3, 4), o["rad"], Color(0, 0, 0, 0.15), 0)
+				g.draw_colored_polygon(o["pts"], Color("7fb85a"))
 				var pts: PackedVector2Array = o["pts"].duplicate()
 				pts.append(pts[0])
-				draw_polyline(pts, Ink.BLACK, 2)
-				draw_circle(o["p"] + Vector2(-o["rad"] * 0.3, -o["rad"] * 0.3), o["rad"] * 0.35, Color("9fd178"))
+				g.draw_polyline(pts, Ink.BLACK, 2)
+				g.draw_circle(o["p"] + Vector2(-o["rad"] * 0.3, -o["rad"] * 0.3), o["rad"] * 0.35, Color("9fd178"))
 			"rock":
-				draw_colored_polygon(o["pts"], Color("a7a39b"))
+				g.draw_colored_polygon(o["pts"], Color("a7a39b"))
 				var pts: PackedVector2Array = o["pts"].duplicate()
 				pts.append(pts[0])
-				draw_polyline(pts, Ink.BLACK, 2)
+				g.draw_polyline(pts, Ink.BLACK, 2)
 			"tower":
-				Ink.circle(self, o["p"], o["rad"], Color("e9e6df"), 2.5)
-				draw_arc(o["p"], o["rad"] * 0.7, 0, TAU, 20, Color(0.5, 0.5, 0.5), 1.5)
-				draw_arc(o["p"], o["rad"] * 0.4, 0, TAU, 16, Color(0.5, 0.5, 0.5), 1.5)
+				Ink.circle(g, o["p"], o["rad"], Color("e9e6df"), 2.5)
+				g.draw_arc(o["p"], o["rad"] * 0.7, 0, TAU, 20, Color(0.5, 0.5, 0.5), 1.5)
+				g.draw_arc(o["p"], o["rad"] * 0.4, 0, TAU, 16, Color(0.5, 0.5, 0.5), 1.5)
+
+
+## Fallen marbles; redrawn only when someone dies.
+func _draw_corpses() -> void:
 	for c in corpses:
-		Ink.circle(self, c["p"], c["r"], c["c"], 1.5)
+		Ink.circle(corpse_layer, c["p"], c["r"], c["c"], 1.5)
+
+
+func _draw_shadows() -> void:
 	for u in units:
 		if not u.dead:
-			draw_circle(u.global_position + Vector2(3, 4), u.radius, Color(0, 0, 0, 0.18))
+			shadow_layer.draw_circle(u.global_position + Vector2(3, 4), u.radius, Color(0, 0, 0, 0.18))
 
 
 func _draw_overlay() -> void:

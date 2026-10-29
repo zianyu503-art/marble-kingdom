@@ -535,12 +535,22 @@ func feed(text: String, col: Color) -> void:
 
 # --------------------------------------------------------------- controls
 
+static func low_power() -> bool:
+	return OS.has_feature("web") or OS.has_feature("mobile") or "--lowpower" in OS.get_cmdline_user_args()
+
+
 func _set_speed(v: float) -> void:
 	speed = v
 	get_tree().paused = false
 	Engine.time_scale = v
-	Engine.physics_ticks_per_second = int(240 * v)
-	Engine.max_physics_steps_per_frame = 12 * int(v)
+	if low_power():
+		# browsers/tablets run single-threaded: fewer physics steps, and never
+		# more than a few per frame so a slow frame can't snowball into a freeze
+		Engine.physics_ticks_per_second = int(120 * minf(v, 2.0))
+		Engine.max_physics_steps_per_frame = 4
+	else:
+		Engine.physics_ticks_per_second = int(240 * v)
+		Engine.max_physics_steps_per_frame = 12 * int(v)
 	sfx.play("click")
 
 

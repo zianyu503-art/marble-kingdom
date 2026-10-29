@@ -129,7 +129,6 @@ func _rect(x: float, y: float, w: float, h: float) -> Array:
 
 
 func _physics_process(delta: float) -> void:
-	queue_redraw()
 	if dropped or not is_instance_valid(holder) or holder.dead:
 		return
 	attack_cd -= delta
