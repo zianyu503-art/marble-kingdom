@@ -13,6 +13,9 @@ func _ready() -> void:
 	sfx.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(sfx)
 	var args := OS.get_cmdline_user_args()
+	if "--skilltest" in args:
+		_skill_test(args)
+		return
 	if "--autostart" in args:
 		# used for automated smoke tests: start a 6-kingdom war at 4x speed
 		var ks: Array = []
@@ -29,6 +32,40 @@ func _ready() -> void:
 			_capture_loop(dir)
 	else:
 		_show_menu()
+
+
+## Test: one field battle with every unit type and the skill upgrades on both
+## sides; prints how often each skill fired, saves a few frames, then quits.
+func _skill_test(args: PackedStringArray) -> void:
+	var rng := RandomNumberGenerator.new()
+	_start({"kingdoms": [{"index": 0, "king": "Test I"}, {"index": 1, "king": "Test II"}], "towns": 0, "bandits": false, "seed": 7})
+	var g: Game = screen
+	g.world.paused = true
+	var sides: Array = []
+	for fid in 2:
+		var f: Faction = g.factions[fid]
+		for up in ["dash", "volley", "whirl", "thorns"]:
+			f.add_upgrade(up)
+		f.decision_timer = 9999.0
+		var list: Array = []
+		for t in ["footman", "spearman", "knight", "berserker", "hammerman", "archer", "mage", "kingsguard",
+				"captain", "monk", "bard", "necromancer", "crossbowman", "fighter", "fighter", "farmer"]:
+			list.append(Soldier.create(t, fid))
+		list.append(Soldier.create("king", fid))
+		list[-1].name = "Test " + Kingdoms.roman(fid + 1)
+		sides.append(g.world.spawn_army(Vector2(300 + fid * 400, 300), fid, list))
+	g._start_battle(sides[0], sides[1], null)
+	var dir := ""
+	for a in args:
+		if a.begins_with("--shots="):
+			dir = a.substr(8)
+	for i in 4:
+		await get_tree().create_timer(3.0, true, false, true).timeout
+		if dir != "":
+			get_viewport().get_texture().get_image().save_png("%s/skill_%02d.png" % [dir, i])
+	while g.battle.running:
+		await get_tree().process_frame
+	get_tree().quit()
 
 
 ## Saves a screenshot every few real seconds, then quits (smoke tests).

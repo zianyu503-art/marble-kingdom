@@ -20,6 +20,14 @@ const ALL := {
 	"mage":       {"title": "Mage",          "desc": "+2 mages join",               "kind": "recruit", "icon": "star"},
 	"kingsguard": {"title": "Kingsguard",    "desc": "+3 kingsguards in the city",  "kind": "recruit", "icon": "shield"},
 	"berserkers": {"title": "Berserkers",    "desc": "+6 berserkers join",          "kind": "recruit", "icon": "axe"},
+	"dash":       {"title": "Dash",          "desc": "Marbles periodically blast toward enemies", "kind": "buff", "icon": "dash"},
+	"thorns":     {"title": "Thorns",        "desc": "Reflect 20% of damage taken", "kind": "buff",    "icon": "thorns"},
+	"volley":     {"title": "Volley",        "desc": "Ranged units fire 5 shots at once", "kind": "buff", "icon": "volley"},
+	"whirl":      {"title": "Whirlwind",     "desc": "All melee marbles can spin-attack", "kind": "buff", "icon": "whirl"},
+	"monks":      {"title": "Monks",         "desc": "+2 monks that convert enemies", "kind": "recruit", "icon": "halo"},
+	"bards":      {"title": "Bards",         "desc": "+3 bards that heal allies",   "kind": "recruit", "icon": "note"},
+	"necro":      {"title": "Necromancer",   "desc": "+1 necromancer that raises the dead", "kind": "recruit", "icon": "skull"},
+	"crossbows":  {"title": "Crossbowmen",   "desc": "+5 crossbowmen, piercing bolts", "kind": "recruit", "icon": "crossbow"},
 	"town":       {"title": "Build Town",    "desc": "Found a new town nearby",     "kind": "special", "icon": "house"},
 	"declare":    {"title": "Declare King",  "desc": "Strongest marble is crowned, +2 kingsguards", "kind": "special", "icon": "crown"},
 }
@@ -39,7 +47,7 @@ static func roll(rng: RandomNumberGenerator, f: Faction, has_king: bool, n := 4)
 	for k in ALL:
 		if k == "declare" and has_king:
 			continue
-		if k in ["spectral", "seek"] and f.has(k):
+		if k in ["spectral", "seek", "dash", "volley", "whirl"] and f.has(k):
 			continue
 		pool.append(k)
 	var out: Array = []
@@ -133,5 +141,41 @@ static func draw_icon(ci: CanvasItem, icon: String, c: Vector2, r: float, col: C
 			ci.draw_circle(c + Vector2(0, r * 0.2), r * 0.65, Color("b08850"))
 			ci.draw_rect(Rect2(c + Vector2(-r * 0.25, -r * 0.8), Vector2(r * 0.5, r * 0.4)), Color("b08850"))
 			ci.draw_string(ThemeDB.fallback_font, c + Vector2(-r * 0.25, r * 0.5), "$", HORIZONTAL_ALIGNMENT_LEFT, -1, int(r), Color("ffe066"))
+		"dash":
+			for i in 3:
+				var y := (i - 1) * r * 0.45
+				ci.draw_line(c + Vector2(-r, y), c + Vector2(r * 0.1, y), ink, w * 0.7)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(r * 0.1, -r * 0.6), c + Vector2(r, 0), c + Vector2(r * 0.1, r * 0.6)]), col)
+		"thorns":
+			ci.draw_circle(c, r * 0.5, Color("6b8e3a"))
+			for i in 8:
+				var a := i * TAU / 8
+				ci.draw_colored_polygon(PackedVector2Array([c + Vector2.from_angle(a - 0.25) * r * 0.45, c + Vector2.from_angle(a) * r, c + Vector2.from_angle(a + 0.25) * r * 0.45]), Color("4a6a24"))
+		"volley":
+			for i in 3:
+				var a := -0.5 + i * 0.5
+				var d := Vector2.from_angle(a - PI / 2)
+				ci.draw_line(c + d * -r * 0.3, c + d * r, ink, w * 0.6)
+				ci.draw_circle(c + d * r, w * 0.6, Color(0.8, 0.82, 0.86))
+		"whirl":
+			ci.draw_arc(c, r * 0.8, 0, PI * 1.5, 16, Color("ff9a4a"), w)
+			ci.draw_arc(c, r * 0.45, PI, PI * 2.5, 12, Color("ff9a4a"), w)
+		"halo":
+			ci.draw_circle(c + Vector2(0, r * 0.25), r * 0.5, Color("8a6a45"))
+			ci.draw_arc(c + Vector2(0, -r * 0.45), r * 0.45, 0, TAU, 16, Color("ffe066"), w)
+		"note":
+			ci.draw_circle(c + Vector2(-r * 0.3, r * 0.5), r * 0.3, ink)
+			ci.draw_line(c + Vector2(0, r * 0.5), c + Vector2(0, -r * 0.8), ink, w * 0.7)
+			ci.draw_line(c + Vector2(0, -r * 0.8), c + Vector2(r * 0.6, -r * 0.5), ink, w * 0.7)
+		"skull":
+			ci.draw_circle(c + Vector2(0, -r * 0.1), r * 0.65, Color(0.93, 0.92, 0.86))
+			ci.draw_rect(Rect2(c + Vector2(-r * 0.35, r * 0.3), Vector2(r * 0.7, r * 0.45)), Color(0.93, 0.92, 0.86))
+			ci.draw_circle(c + Vector2(-r * 0.25, -r * 0.1), r * 0.15, ink)
+			ci.draw_circle(c + Vector2(r * 0.25, -r * 0.1), r * 0.15, ink)
+		"crossbow":
+			ci.draw_line(c + Vector2(-r * 0.8, 0), c + Vector2(r * 0.8, 0), Color("8a5428"), w)
+			ci.draw_line(c + Vector2(r * 0.4, -r * 0.8), c + Vector2(r * 0.4, r * 0.8), Color(0.55, 0.57, 0.62), w)
+			ci.draw_line(c + Vector2(r * 0.4, -r * 0.8), c + Vector2(-r * 0.2, 0), ink, w * 0.3)
+			ci.draw_line(c + Vector2(r * 0.4, r * 0.8), c + Vector2(-r * 0.2, 0), ink, w * 0.3)
 		_:
 			ci.draw_circle(c, r * 0.6, col)

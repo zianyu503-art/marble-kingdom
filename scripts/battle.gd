@@ -51,6 +51,7 @@ var stat_wall_arrows := 0
 var stat_escapes := 0
 var stat_shots := 0
 var stat_back_shots := 0
+var stat_skills := {}
 
 
 func _ready() -> void:
@@ -90,6 +91,7 @@ func start(info: Dictionary) -> void:
 	stat_escapes = 0
 	stat_shots = 0
 	stat_back_shots = 0
+	stat_skills = {}
 	_build_terrain()
 	_spawn_side(info["attackers"], fac_a, 0)
 	_spawn_side(info["defenders"], fac_d, 1)
@@ -250,7 +252,7 @@ func _rank(s: Soldier) -> int:
 	match s.type:
 		"king":
 			return 9
-		"archer", "mage":
+		"archer", "mage", "crossbowman", "bard", "monk", "necromancer":
 			return 7
 		"captain", "kingsguard":
 			return 5
@@ -289,19 +291,108 @@ func enemies_near(me: Unit, p: Vector2, r: float) -> Array:
 func fire(u: Unit, target: Unit) -> void:
 	# projectiles leave the bow/staff in the direction it is pointing
 	var m: Transform2D = u.weapon.muzzle()
-	var from := m.origin
 	var dir := m.x.normalized()
 	stat_shots += 1
 	if dir.dot(target.global_position - u.global_position) < 0.0:
 		stat_back_shots += 1
-	if u.ranged == "arrow":
-		projectiles.append({"p": from, "v": dir * 560.0, "dmg": u.dmg * 2.2, "from": u, "side": u.side, "k": "arrow", "life": 1.3})
-		game.sfx.play("bow", randf_range(0.9, 1.15), 0.05, -8.0)
-	else:
-		var fireball := u.soldier.level >= 3
-		projectiles.append({"p": from, "v": dir * (260.0 if fireball else 330.0), "dmg": u.dmg * (3.0 if fireball else 2.0),
-			"from": u, "side": u.side, "k": "fire" if fireball else "magic", "life": 2.2, "target": target})
-		game.sfx.play("magic", randf_range(0.9, 1.2), 0.05, -6.0)
+	_shoot(u, target, m.origin, dir)
+
+
+## Volley: several projectiles fanned out around the aim direction.
+func fire_spread(u: Unit, target: Unit, n: int, spread: float) -> void:
+	var m: Transform2D = u.weapon.muzzle()
+	var dir := m.x.normalized()
+	for i in n:
+		var a := lerpf(-spread, spread, float(i) / maxf(1, n - 1))
+		_shoot(u, target, m.origin, dir.rotated(a))
+
+
+func _shoot(u: Unit, target: Unit, from: Vector2, dir: Vector2) -> void:
+	match u.ranged:
+		"arrow":
+			projectiles.append({"p": from, "v": dir * 560.0, "dmg": u.dmg * 2.2, "from": u, "side": u.side, "k": "arrow", "life": 1.3})
+			game.sfx.play("bow", randf_range(0.9, 1.15), 0.05, -8.0)
+		"bolt":
+			# crossbow bolts are fast and pierce through two marbles
+			projectiles.append({"p": from, "v": dir * 780.0, "dmg": u.dmg * 2.8, "from": u, "side": u.side, "k": "bolt", "life": 1.2, "pierce": 2, "hits": []})
+			game.sfx.play("bow", 0.7, 0.05, -6.0)
+		"note":
+			projectiles.append({"p": from, "v": dir * 300.0, "dmg": u.dmg * 1.8, "from": u, "side": u.side, "k": "note", "life": 2.0, "target": target})
+			game.sfx.play("magic", randf_range(1.4, 1.8), 0.05, -8.0)
+		_:
+			var fireball := u.soldier.level >= 3 and u.soldier.type == "mage"
+			projectiles.append({"p": from, "v": dir * (260.0 if fireball else 330.0), "dmg": u.dmg * (3.0 if fireball else 2.0),
+				"from": u, "side": u.side, "k": "fire" if fireball else "magic", "life": 2.2, "target": target,
+				"c": Color("7cff8a") if u.soldier.type == "necromancer" else Color("b48cff")})
+			game.sfx.play("magic", randf_range(0.9, 1.2), 0.05, -6.0)
+
+
+# --------------------------------------------------------------- skills
+
+func stat_skill(sk: String) -> void:
+	stat_skills[sk] = stat_skills.get(sk, 0) + 1
+
+
+func skill_text(u: Unit, t: String, col: Color) -> void:
+	texts.append({"p": u.global_position + Vector2(0, -u.radius - 30), "t": t, "c": col, "life": 1.1, "size": 15})
+
+
+func shockwave(p: Vector2, r: float, col: Color) -> void:
+	fx.append({"p": p, "v": Vector2.ZERO, "life": 0.45, "max": 0.45, "c": col, "s": 0.0, "ring": r})
+	game.sfx.play("boom", 1.4, 0.08, -6.0)
+
+
+func heal_fx(u: Unit) -> void:
+	for i in 3:
+		fx.append({"p": u.global_position + Vector2(randf_range(-8, 8), randf_range(-4, 4)), "v": Vector2(0, -40), "life": 0.6, "max": 0.6, "c": Color("7dff9a"), "s": 3.0})
+
+
+func allies_near(me: Unit, p: Vector2, r: float) -> Array:
+	var out := []
+	for u in units:
+		if not u.dead and u.side == me.side and u.global_position.distance_to(p) < r + u.radius:
+			out.append(u)
+	return out
+
+
+## Monk conversion: the target marble joins the monk's side.
+func convert(t: Unit, monk: Unit) -> void:
+	if t.dead or t.side == monk.side:
+		return
+	var old_fac := t.fac
+	t.switch_side(monk.fac, monk.side)
+	for i in 16:
+		fx.append({"p": t.global_position, "v": Vector2.from_angle(i * TAU / 16) * 120.0, "life": 0.5, "max": 0.5, "c": Color("fff2a8"), "s": 3.0})
+	skill_text(t, "CONVERTED", Color("fff2a8"))
+	game.feed("%s converted a %s %s!" % [_who(monk), old_fac.name, t.soldier.type], monk.fac.color)
+	game.sfx.play("levelup", 0.8)
+	_check_end()
+
+
+## Necromancy: fallen marbles near the caster rise as skeletons on its side.
+func raise_skeletons(owner_unit: Unit, r: float, n: int) -> int:
+	var raised := 0
+	for i in range(corpses.size() - 1, -1, -1):
+		if raised >= n:
+			break
+		var c: Dictionary = corpses[i]
+		if c["p"].distance_to(owner_unit.global_position) > r:
+			continue
+		corpses.remove_at(i)
+		var s := Soldier.create("skeleton", owner_unit.fac.id)
+		var u := Unit.new()
+		u.position = c["p"]
+		u.setup(s, owner_unit.fac, self, owner_unit.side)
+		unit_root.add_child(u)
+		u.arm(unit_root)
+		units.append(u)
+		for k in 10:
+			fx.append({"p": c["p"], "v": Vector2.from_angle(randf() * TAU) * 80.0, "life": 0.6, "max": 0.6, "c": Color("b78cff"), "s": 3.0})
+		raised += 1
+	if raised > 0:
+		corpse_layer.queue_redraw()
+		game.sfx.play("magic", 0.6)
+	return raised
 
 
 func clang(p: Vector2, weapon_on_weapon := true) -> void:
@@ -393,8 +484,8 @@ func _check_end() -> void:
 
 func _finish(winner: int, retreat: bool) -> void:
 	ended = true
-	if OS.get_cmdline_user_args().has("--autostart"):
-		print("battle %s: weapon clashes=%d hits=%d arrows blocked by walls=%d unstuck=%d shots=%d backward=%d time=%.1fs" % [terrain, stat_clash, stat_hits, stat_wall_arrows, stat_escapes, stat_shots, stat_back_shots, elapsed])
+	if OS.get_cmdline_user_args().has("--autostart") or OS.get_cmdline_user_args().has("--skilltest"):
+		print("battle %s: weapon clashes=%d hits=%d arrows blocked by walls=%d unstuck=%d shots=%d backward=%d time=%.1fs skills=%s" % [terrain, stat_clash, stat_hits, stat_wall_arrows, stat_escapes, stat_shots, stat_back_shots, elapsed, str(stat_skills)])
 	var wf := fac_a if winner == 0 else fac_d
 	_show_banner("RETREAT!" if retreat else "VICTORY", wf.color)
 	game.sfx.play("win" if not retreat else "horn")
@@ -406,7 +497,8 @@ func _finish(winner: int, retreat: bool) -> void:
 			u.soldier.hp = u.hp
 			if (u.side == 0 and fac_a.has("wisdom")) or (u.side == 1 and fac_d.has("wisdom")):
 				u.soldier.add_xp(1.0)
-			surv[u.side].append(u.soldier)
+			if u.soldier.type != "skeleton":
+				surv[u.side].append(u.soldier)
 	finished.emit({"winner": winner, "retreat": retreat, "survivors_a": surv[0], "survivors_d": surv[1]})
 
 
@@ -419,7 +511,7 @@ func _physics_process(delta: float) -> void:
 	for i in range(projectiles.size() - 1, -1, -1):
 		var pr: Dictionary = projectiles[i]
 		pr["life"] -= delta
-		if pr["k"] != "arrow" and pr.has("target"):
+		if pr.has("target"):
 			var tg = pr["target"]
 			if is_instance_valid(tg) and not tg.dead:
 				var want: Vector2 = (tg.global_position - pr["p"]).normalized() * pr["v"].length()
@@ -433,7 +525,7 @@ func _physics_process(delta: float) -> void:
 			if pr["k"] == "fire":
 				var src0 = pr["from"]
 				_explode(wall["position"], pr["dmg"], pr["side"], src0 if is_instance_valid(src0) and not src0.dead else null)
-			elif pr["k"] == "arrow":
+			elif pr["k"] == "arrow" or pr["k"] == "bolt":
 				stat_wall_arrows += 1
 				stuck.append({"p": wall["position"], "d": pr["v"].normalized(), "life": 4.0})
 				game.sfx.play("hit", 2.0, 0.05, -14.0)
@@ -445,6 +537,19 @@ func _physics_process(delta: float) -> void:
 			if u.global_position.distance_to(pr["p"]) < u.radius + 3.0:
 				var from = pr["from"]
 				var src: Unit = from if is_instance_valid(from) and not from.dead else null
+				if pr.has("pierce"):
+					if pr["hits"].has(u):
+						continue
+					pr["hits"].append(u)
+					if src:
+						src.deal_damage(u, pr["dmg"], "ranged")
+					else:
+						u.take_damage(pr["dmg"], null)
+					pr["pierce"] -= 1
+					if pr["pierce"] >= 0:
+						continue
+					hit = true
+					break
 				if pr["k"] == "fire":
 					_explode(pr["p"], pr["dmg"], pr["side"], src)
 				elif src:
@@ -597,8 +702,16 @@ func _draw_overlay() -> void:
 				o.draw_line(p - d * 14, p, Ink.BLACK, 2)
 				o.draw_line(p - d * 14, p - d * 10 + d.orthogonal() * 3, Color.WHITE, 1.5)
 			"magic":
-				o.draw_circle(p, 5, Color("b48cff"))
+				o.draw_circle(p, 5, pr.get("c", Color("b48cff")))
 				o.draw_circle(p, 2.5, Color.WHITE)
+			"bolt":
+				var d: Vector2 = pr["v"].normalized()
+				o.draw_line(p - d * 16, p, Ink.BLACK, 3)
+				o.draw_line(p - d * 4, p + d * 2, Color(0.8, 0.82, 0.86), 3)
+			"note":
+				o.draw_circle(p + Vector2(-3, 4), 4, Ink.BLACK)
+				o.draw_line(p + Vector2(0, 4), p + Vector2(0, -8), Ink.BLACK, 2)
+				o.draw_line(p + Vector2(0, -8), p + Vector2(6, -5), Ink.BLACK, 2)
 			"fire":
 				o.draw_circle(p, 8, Color("ff7a1a"))
 				o.draw_circle(p, 4, Color("ffe066"))
@@ -606,7 +719,28 @@ func _draw_overlay() -> void:
 		var a: float = f["life"] / f["max"]
 		var c: Color = f["c"]
 		c.a = a
+		if f.has("ring"):
+			o.draw_arc(f["p"], f["ring"] * (1.0 - a * 0.7), 0, TAU, 40, c, 4.0 * a + 1.0)
+			continue
 		o.draw_circle(f["p"], f["s"] * (0.5 + a * 0.5), c)
+	var t_now := Time.get_ticks_msec() / 1000.0
+	for u in units:
+		if u.dead:
+			continue
+		var p: Vector2 = u.global_position
+		if u.buff_t > 0.0:
+			o.draw_arc(p, u.radius + 5, 0, TAU, 28, Color(1.0, 0.85, 0.3, 0.75), 3.0)
+		if u.whirl_t > 0.0:
+			for k in 2:
+				var a0 := t_now * 14.0 + k * PI
+				o.draw_arc(p, u.radius + 10, a0, a0 + 1.6, 10, Color(1, 0.6, 0.3, 0.8), 3.0)
+		if u.stun_t > 0.0:
+			for k in 3:
+				var sp := p + Vector2(0, -u.radius - 10) + Vector2.from_angle(t_now * 6.0 + k * TAU / 3) * Vector2(12, 4)
+				o.draw_circle(sp, 3.0, Color("ffe25a"))
+		if u.convert_t > 0.0 and u.convert_target and is_instance_valid(u.convert_target):
+			var w := 2.0 + 2.0 * sin(t_now * 20.0)
+			o.draw_line(p, u.convert_target.global_position, Color(1.0, 0.95, 0.6, 0.8), w + 1.5)
 	for u in units:
 		if u.dead:
 			continue

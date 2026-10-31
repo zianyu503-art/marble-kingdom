@@ -20,7 +20,8 @@ const LAYER_WEAPON := 4
 const STYLE := {
 	"spear": "thrust", "halberd": "thrust", "pitchfork": "thrust",
 	"sword": "swing", "greatsword": "swing", "axe": "swing", "hammer": "swing", "stick": "swing",
-	"bow": "aim", "staff": "aim",
+	"bone": "swing",
+	"bow": "aim", "staff": "aim", "crossbow": "aim", "lute": "aim", "darkstaff": "aim",
 }
 const COOLDOWN := {"thrust": 0.85, "swing": 1.1}
 
@@ -110,6 +111,25 @@ func _build(k: String, l: float, w: float) -> void:
 				pts.append(Vector2(-6, 0) + Vector2(cos(a), sin(a)) * 12.0)
 			parts.append({"poly": PackedVector2Array(pts), "col": WOOD, "solid": false, "line": true})
 			parts.append(_part(_rect(0, -4, 6, 8), WOOD))
+		"crossbow":
+			parts.append(_part(_rect(-4, -2.5, l + 4, 5), WOOD))
+			parts.append(_part(_rect(l - 4, -10, 3.5, 20), DARK_STEEL))
+			parts.append({"poly": PackedVector2Array([Vector2(l - 3, -10), Vector2(l - 9, 0), Vector2(l - 3, 10)]), "col": INK, "solid": false, "line": true})
+		"lute":
+			parts.append(_part(_rect(-2, -1.8, l, 3.6), WOOD))
+			var body: Array = []
+			for i in 10:
+				body.append(Vector2(-6, 0) + Vector2.from_angle(i * TAU / 10) * Vector2(7.0, 6.0))
+			parts.append(_part(body, Color("c98a3a")))
+		"darkstaff":
+			parts.append(_part(_rect(-6, -1.8, l, 3.6), Color("3a2c22")))
+			var skull: Array = []
+			for i in 8:
+				skull.append(Vector2(l - 1, 0) + Vector2.from_angle(i * TAU / 8) * 5.5)
+			parts.append(_part(skull, Color(0.93, 0.92, 0.86)))
+		"bone":
+			parts.append(_part(_rect(-2, -2, l, 4), Color(0.93, 0.92, 0.86)))
+			parts.append(_part(_rect(l - 4, -4, 5, 8), Color(0.93, 0.92, 0.86)))
 		"staff":
 			parts.append(_part(_rect(-6, -1.8, l, 3.6), WOOD))
 			var orb: Array = []
@@ -200,7 +220,15 @@ func ready_to_fire() -> bool:
 ## Where projectiles leave the weapon, and their direction.
 func muzzle() -> Transform2D:
 	var d := Vector2.from_angle(rotation)
-	return Transform2D(rotation, global_position + d * (8.0 if kind == "bow" else length))
+	var tip := 8.0 if kind == "bow" else (length + 2.0 if kind == "crossbow" else length)
+	return Transform2D(rotation, global_position + d * tip)
+
+
+## Starts a thrust or swing right away (used by the lunge skill).
+func start_attack() -> void:
+	if style == "thrust" or style == "swing":
+		attack_t = 0.0
+		swing_dir = 1.0 if randf() < 0.5 else -1.0
 
 
 func _end_attack() -> void:

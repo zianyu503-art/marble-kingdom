@@ -32,7 +32,22 @@ remake, built in Godot 4.6, and is not affiliated with Lost Marbles.
   magic raycast against walls (arrows stick in them). Marbles use ray-based context steering
   to walk around walls, and work themselves free when stuck.
 - **Units**: King, Kingsguard, Captain, Fighter, Footman, Spearman, Knight, Berserker,
-  Hammerman, Archer, Mage, Farmer, Bandit, Villager.
+  Hammerman, Archer, Mage, Farmer, Monk, Bard, Necromancer, Crossbowman, Skeleton, Bandit,
+  Villager.
+- **Skills**:
+  | Skill | Who | Effect |
+  | --- | --- | --- |
+  | Whirlwind | Berserker (all melee with the Whirlwind upgrade) | Spins very fast for a moment, +40% damage |
+  | Shield Bash | Footman, Knight, Captain, King | Charges into the enemy, damage + stun |
+  | Lunge | Spearman, Kingsguard | Dashes in from mid range with a thrust |
+  | Ground Slam | Hammerman, King (Royal Slam) | Area damage, stun and knockback |
+  | War Cry | Captain, King | Nearby allies get +35% damage and speed |
+  | Volley | Archer (all ranged with the Volley upgrade) | Fires 5 shots in a fan |
+  | Convert | Monk | Channels a beam; the enemy joins the monk's side (not kings or leaders) |
+  | Song of Healing | Bard | Heals nearby allies; attacks with music notes |
+  | Raise Dead | Necromancer | Fallen marbles nearby rise as skeletons |
+  | Piercing Bolt | Crossbowman | Bolts pass through two marbles |
+  | Dash / Thorns | Upgrades | Periodic dash at enemies / reflect 20% damage |
 - **XP and levels**: kills give XP. A level-up raises HP, damage, speed and size, and a
   marble that reaches level 2 gets a name. The event feed reports "X has leveled up!" and
   "Captain Y has been slain by Z".

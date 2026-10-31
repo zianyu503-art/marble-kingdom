@@ -11,7 +11,7 @@ const CITY_HALF := 15.0
 const TOWN_HALF := 10.0
 const ARMY_SPEED := 30.0
 const CITY_MIX := {"fighter": 38, "footman": 20, "spearman": 20, "archer": 15, "knight": 5, "berserker": 2}
-const TOWN_TYPES := ["spearman", "archer", "berserker", "hammerman", "knight", "footman", "farmer"]
+const TOWN_TYPES := ["spearman", "archer", "berserker", "hammerman", "knight", "footman", "farmer", "crossbowman"]
 
 
 class Settlement:

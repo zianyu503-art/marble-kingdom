@@ -409,6 +409,17 @@ func apply_upgrade(fid: int, id: String) -> void:
 				"berserkers":
 					for i in 6:
 						add.append(Soldier.create("berserker", fid))
+				"monks":
+					for i in 2:
+						add.append(Soldier.create("monk", fid))
+				"bards":
+					for i in 3:
+						add.append(Soldier.create("bard", fid))
+				"necro":
+					add.append(Soldier.create("necromancer", fid))
+				"crossbows":
+					for i in 5:
+						add.append(Soldier.create("crossbowman", fid))
 			_deliver(fid, add)
 		"special":
 			match id:
