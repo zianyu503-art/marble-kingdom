@@ -3,6 +3,7 @@ extends Control
 ## Main menu: choose which kingdoms go to war, name their kings, set options.
 
 signal start_war(cfg: Dictionary)
+signal open_arena
 
 var sfx: Sfx
 var rng := RandomNumberGenerator.new()
@@ -93,6 +94,13 @@ func build(last: Dictionary, sound: Sfx) -> void:
 	start_btn.size = Vector2(340, 56)
 	start_btn.pressed.connect(_start)
 	add_child(start_btn)
+	var arena_btn := Button.new()
+	arena_btn.text = "  ARENA  "
+	arena_btn.add_theme_font_size_override("font_size", 22)
+	arena_btn.position = Vector2(220, 644)
+	arena_btn.size = Vector2(200, 50)
+	arena_btn.pressed.connect(func(): open_arena.emit())
+	add_child(arena_btn)
 	warn = _outlined("", 16)
 	warn.position = Vector2(830, 655)
 	add_child(warn)

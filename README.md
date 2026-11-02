@@ -48,6 +48,9 @@ remake, built in Godot 4.6, and is not affiliated with Lost Marbles.
   | Raise Dead | Necromancer | Fallen marbles nearby rise as skeletons |
   | Piercing Bolt | Crossbowman | Bolts pass through two marbles |
   | Dash / Thorns | Upgrades | Periodic dash at enemies / reflect 20% damage |
+- **Arena** (from the main menu): build two sides from any unit types (up to 60 marbles each),
+  set their level (0–10) and upgrades, pick the terrain, and watch them fight. Rematch or edit
+  after the result; the result screen names the MVP.
 - **XP and levels**: kills give XP. A level-up raises HP, damage, speed and size, and a
   marble that reaches level 2 gets a name. The event feed reports "X has leveled up!" and
   "Captain Y has been slain by Z".

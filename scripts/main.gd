@@ -13,6 +13,27 @@ func _ready() -> void:
 	sfx.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(sfx)
 	var args := OS.get_cmdline_user_args()
+	if "--arenatest" in args:
+		# test: open the arena, randomise both sides, fight, save frames, quit
+		_show_arena()
+		var dir := ""
+		for a in args:
+			if a.begins_with("--shots="):
+				dir = a.substr(8)
+		await get_tree().process_frame
+		screen._action("random")
+		await get_tree().create_timer(0.5).timeout
+		get_viewport().get_texture().get_image().save_png(dir + "/arena_setup.png")
+		screen._fight()
+		await get_tree().create_timer(6.0).timeout
+		get_viewport().get_texture().get_image().save_png(dir + "/arena_fight.png")
+		while screen.result.is_empty():
+			await get_tree().process_frame
+		await get_tree().create_timer(0.5).timeout
+		get_viewport().get_texture().get_image().save_png(dir + "/arena_result.png")
+		print("arena result: winner side %d" % screen.result["winner"])
+		get_tree().quit()
+		return
 	if "--skilltest" in args:
 		_skill_test(args)
 		return
@@ -115,7 +136,17 @@ func _show_menu() -> void:
 	add_child(m)
 	m.build(last_cfg, sfx)
 	m.start_war.connect(_start)
+	m.open_arena.connect(_show_arena)
 	screen = m
+
+
+func _show_arena() -> void:
+	_clear()
+	var a := preload("res://scripts/arena.gd").new()
+	add_child(a)
+	a.setup(sfx)
+	a.back_to_menu.connect(_show_menu.call_deferred)
+	screen = a
 
 
 func _start(cfg: Dictionary) -> void:

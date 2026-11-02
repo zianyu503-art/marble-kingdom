@@ -89,13 +89,24 @@ func add_xp(amount: float) -> bool:
 	xp += amount
 	if xp >= xp_needed() and level < 10:
 		xp -= xp_needed()
-		level += 1
-		bonus_hp += stats()["hp"] * 0.25
-		bonus_dmg += stats()["dmg"] * 0.12
-		bonus_speed += 0.06
-		bonus_size += 0.05
+		level_up()
 		return true
 	return false
+
+
+func level_up() -> void:
+	level += 1
+	bonus_hp += stats()["hp"] * 0.25
+	bonus_dmg += stats()["dmg"] * 0.12
+	bonus_speed += 0.06
+	bonus_size += 0.05
+
+
+## Arena: start at a given level, at full health.
+func set_level(n: int) -> void:
+	for i in mini(n, 10):
+		level_up()
+	hp = max_hp(null)
 
 
 func is_named() -> bool:

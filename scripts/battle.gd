@@ -7,7 +7,8 @@ extends Node2D
 signal finished(result: Dictionary)
 
 const SIZE := Vector2(720, 720)
-const TIME_LIMIT := 85.0
+## Seconds before the attacker retreats (the arena raises it).
+var time_limit := 85.0
 const GRASS := Color("b9d98f")
 const GRASS_DARK := Color("6f9e4a")
 const STONE := Color("e4e1d8")
@@ -506,7 +507,7 @@ func _physics_process(delta: float) -> void:
 	if not running:
 		return
 	elapsed += delta
-	if not ended and elapsed > TIME_LIMIT:
+	if not ended and elapsed > time_limit:
 		_finish(1, true)
 	for i in range(projectiles.size() - 1, -1, -1):
 		var pr: Dictionary = projectiles[i]
