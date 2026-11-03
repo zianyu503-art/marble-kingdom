@@ -389,6 +389,9 @@ func raise_skeletons(owner_unit: Unit, r: float, n: int) -> int:
 		units.append(u)
 		for k in 10:
 			fx.append({"p": c["p"], "v": Vector2.from_angle(randf() * TAU) * 80.0, "life": 0.6, "max": 0.6, "c": Color("b78cff"), "s": 3.0})
+		# green beam from the necromancer to the rising corpse
+		for k in 12:
+			fx.append({"p": owner_unit.global_position.lerp(c["p"], k / 11.0), "v": Vector2.ZERO, "life": 0.7, "max": 0.7, "c": Color("7cff8a"), "s": 3.5})
 		raised += 1
 	if raised > 0:
 		corpse_layer.queue_redraw()

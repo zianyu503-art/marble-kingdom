@@ -13,7 +13,7 @@ const INFO := {
 	"volley":    {"title": "VOLLEY!",      "cd": 8.0,  "col": Color("bfe3ff")},
 	"convert":   {"title": "CONVERT",      "cd": 9.0,  "col": Color("fff2a8")},
 	"heal":      {"title": "",             "cd": 1.0,  "col": Color("7dff9a")},
-	"raise":     {"title": "RISE!",        "cd": 9.0,  "col": Color("b78cff")},
+	"raise":     {"title": "RISE!",        "cd": 7.0,  "col": Color("b78cff")},
 	"dash":      {"title": "",             "cd": 6.0,  "col": Color.WHITE},
 }
 

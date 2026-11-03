@@ -252,7 +252,7 @@ func _cast(sk: String) -> bool:
 				battle.stat_skill("heal")
 			return healed
 		"raise":
-			var n: int = battle.raise_skeletons(self, 220.0, 2)
+			var n: int = battle.raise_skeletons(self, 380.0, 3)
 			if n == 0:
 				return false
 		_:
