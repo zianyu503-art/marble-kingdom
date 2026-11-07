@@ -16,7 +16,8 @@ remake, built in Godot 4.6, and is not affiliated with Lost Marbles.
   neutral towns, bandits and the map seed.
 - **World map**: a parchment map with mountains, forests, a river and roads. Each kingdom
   starts with a city (its king plus two kingsguards). Hatched colour shows each kingdom's
-  territory.
+  territory. The map scales with the number of kingdoms: its area, landmarks and bandit camps
+  grow with them, and the suggested number of neutral towns follows unless you set it yourself.
 - **Armies** wander the map at random. Cities and towns keep producing soldiers, and a full
   city musters a new army led by a captain. An army reinforces and heals when it reaches a
   friendly settlement.

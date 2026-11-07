@@ -240,7 +240,7 @@ func _tween_map(small: bool) -> void:
 		map_tween.kill()
 	map_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	map_tween.tween_property(world, "position", MAP_SMALL_POS if small else Vector2.ZERO, 0.35)
-	map_tween.tween_property(world, "scale", Vector2.ONE * (MAP_SMALL_SCALE if small else 1.0), 0.35)
+	map_tween.tween_property(world, "scale", Vector2.ONE * world.view_scale * (MAP_SMALL_SCALE if small else 1.0), 0.35)
 
 
 func _queue_upgrade(fid: int, title: String, sub: String) -> void:
@@ -445,14 +445,14 @@ func _deliver(fid: int, add: Array) -> void:
 	if best:
 		best.soldiers.append_array(add)
 	else:
-		world.spawn_army(Vector2(rng.randf_range(100, 1100), rng.randf_range(100, 600)), fid, add)
+		world.spawn_army(Vector2(rng.randf_range(100, world.map_size.x - 100), rng.randf_range(100, world.map_size.y - 100)), fid, add)
 
 
 func _any_army_pos(fid: int) -> Vector2:
 	for a in world.armies:
 		if a.owner == fid:
 			return a.pos
-	return WorldMap.SIZE * 0.5
+	return world.map_size * 0.5
 
 
 func _declare_king(fid: int) -> void:

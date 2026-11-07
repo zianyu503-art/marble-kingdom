@@ -41,7 +41,11 @@ func _ready() -> void:
 		# used for automated smoke tests: start a 6-kingdom war at 4x speed
 		var ks: Array = []
 		var rng := RandomNumberGenerator.new()
-		for i in 6:
+		var count := 6
+		for a in args:
+			if a.begins_with("--kingdoms="):
+				count = a.substr(11).to_int()
+		for i in count:
 			ks.append({"index": i, "king": Kingdoms.random_king_name(rng)})
 		_start({"kingdoms": ks, "towns": 10, "bandits": true, "seed": 1234})
 		var dir := ""

@@ -6,7 +6,10 @@ extends Node2D
 
 signal encounter(kind: String, a, b)
 
-const SIZE := Vector2(1232, 720)
+## On-screen size of the map; the world itself grows with the kingdom count.
+const VIEW := Vector2(1232, 720)
+## Kingdom count the base world size is designed for.
+const BASE_KINGDOMS := 6.0
 const CITY_HALF := 15.0
 const TOWN_HALF := 10.0
 const ARMY_SPEED := 30.0
@@ -77,18 +80,23 @@ var ink_layer: Node2D
 ## The parchment, territories and fixed landmarks are rendered once into this
 ## viewport and shown as a texture; it is re-rendered only when borders change.
 var bake_vp: SubViewport
+## World size in map units, and how much it is scaled to fill VIEW.
+var map_size := VIEW
+var view_scale := 1.0
+## Keeps text the same size on screen however far the map is zoomed.
+var text_scale := 1.0
 var static_layer: Node2D
 
 
 func _ready() -> void:
 	bake_vp = SubViewport.new()
-	bake_vp.size = Vector2i(SIZE)
+	bake_vp.size = Vector2i(VIEW)
 	bake_vp.disable_3d = true
 	bake_vp.transparent_bg = false
 	bake_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	add_child(bake_vp)
 	bg = ColorRect.new()
-	bg.size = SIZE
+	bg.size = VIEW
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://scripts/territory.gdshader")
 	bg.material = mat
@@ -109,8 +117,23 @@ func _ready() -> void:
 
 # --------------------------------------------------------------- generation
 
+## World area is proportional to the kingdom count, within limits, so each
+## kingdom gets about the same room and a duel isn't lost on a huge map.
+func _fit_to_kingdoms(kingdom_count: int) -> float:
+	var s := clampf(sqrt(kingdom_count / BASE_KINGDOMS), 0.75, 1.5)
+	map_size = (VIEW * s).round()
+	view_scale = VIEW.x / map_size.x
+	text_scale = 1.0 / view_scale
+	scale = Vector2.ONE * view_scale
+	bake_vp.size = Vector2i(map_size)
+	bg.size = map_size
+	(bg.material as ShaderMaterial).set_shader_parameter("map_size", map_size)
+	return s * s
+
+
 func generate(kingdom_count: int, town_count: int, seed_value: int) -> void:
 	rng.seed = seed_value
+	var area := _fit_to_kingdoms(kingdom_count)
 	settlements.clear()
 	armies.clear()
 	mountains.clear()
@@ -124,8 +147,8 @@ func generate(kingdom_count: int, town_count: int, seed_value: int) -> void:
 	var attempts := 0
 	while caps.size() < kingdom_count and attempts < 4000:
 		attempts += 1
-		var p := Vector2(rng.randf_range(90, SIZE.x - 90), rng.randf_range(80, SIZE.y - 80))
-		var min_d := 900.0 / sqrt(float(kingdom_count)) - attempts * 0.05
+		var p := Vector2(rng.randf_range(90, map_size.x - 90), rng.randf_range(80, map_size.y - 80))
+		var min_d := 0.95 * sqrt(map_size.x * map_size.y / kingdom_count) - attempts * 0.05
 		if _far(p, caps, min_d):
 			caps.append(p)
 	for i in caps.size():
@@ -134,7 +157,7 @@ func generate(kingdom_count: int, town_count: int, seed_value: int) -> void:
 		placed.append(caps[i])
 	for i in town_count:
 		for k in 300:
-			var p := Vector2(rng.randf_range(50, SIZE.x - 50), rng.randf_range(50, SIZE.y - 50))
+			var p := Vector2(rng.randf_range(50, map_size.x - 50), rng.randf_range(50, map_size.y - 50))
 			if _far(p, placed, 95.0):
 				var s := _add_settlement(p, "town", game.NEUTRAL)
 				s.produce = TOWN_TYPES[rng.randi() % TOWN_TYPES.size()]
@@ -144,9 +167,9 @@ func generate(kingdom_count: int, town_count: int, seed_value: int) -> void:
 				break
 	# river: a wobbly line across the map
 	river = PackedVector2Array()
-	var y0 := rng.randf_range(150, SIZE.y - 150)
+	var y0 := rng.randf_range(150, map_size.y - 150)
 	for i in 40:
-		var x := -20.0 + i * (SIZE.x + 40) / 39.0
+		var x := -20.0 + i * (map_size.x + 40) / 39.0
 		river.append(Vector2(x, y0 + sin(i * 0.45 + rng.randf()) * 60.0 + rng.randf_range(-8, 8)))
 	# roads between nearby settlements
 	for s in settlements:
@@ -154,22 +177,22 @@ func generate(kingdom_count: int, town_count: int, seed_value: int) -> void:
 		for o in near:
 			if s.id < o.id:
 				roads.append([s.pos, o.pos, rng.randf() * 10.0])
-	for i in rng.randi_range(5, 8):
-		var c := Vector2(rng.randf_range(40, SIZE.x - 40), rng.randf_range(40, SIZE.y - 40))
+	for i in int(rng.randi_range(5, 8) * area):
+		var c := Vector2(rng.randf_range(40, map_size.x - 40), rng.randf_range(40, map_size.y - 40))
 		for k in rng.randi_range(4, 9):
 			var p := c + Vector2(rng.randf_range(-70, 70), rng.randf_range(-40, 40))
 			if _far(p, placed, 34.0):
 				mountains.append({"p": p, "s": rng.randf_range(11, 18)})
-	for i in rng.randi_range(6, 10):
-		var c := Vector2(rng.randf_range(40, SIZE.x - 40), rng.randf_range(40, SIZE.y - 40))
+	for i in int(rng.randi_range(6, 10) * area):
+		var c := Vector2(rng.randf_range(40, map_size.x - 40), rng.randf_range(40, map_size.y - 40))
 		for k in rng.randi_range(6, 14):
 			var p := c + Vector2(rng.randf_range(-55, 55), rng.randf_range(-35, 35))
 			if _far(p, placed, 26.0):
 				forests.append({"p": p, "s": rng.randf_range(5, 8)})
 	if game.bandits_enabled:
-		for i in 2:
+		for i in maxi(1, roundi(2.0 * area)):
 			for k in 200:
-				var p := Vector2(rng.randf_range(60, SIZE.x - 60), rng.randf_range(60, SIZE.y - 60))
+				var p := Vector2(rng.randf_range(60, map_size.x - 60), rng.randf_range(60, map_size.y - 60))
 				if _far(p, placed, 120.0):
 					camps.append(p)
 					break
@@ -198,7 +221,7 @@ func _add_settlement(p: Vector2, kind: String, owner: int) -> Settlement:
 func build_town(near: Vector2, owner: int) -> Settlement:
 	for k in 200:
 		var p := near + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(70, 150)
-		if Rect2(Vector2(40, 40), SIZE - Vector2(80, 80)).has_point(p):
+		if Rect2(Vector2(40, 40), map_size - Vector2(80, 80)).has_point(p):
 			var pts := settlements.map(func(s): return s.pos)
 			if _far(p, pts, 70.0):
 				var s := _add_settlement(p, "town", owner)
@@ -384,7 +407,7 @@ func _bandits(delta: float) -> void:
 	camp_timer -= delta
 	if camp_timer <= 0.0:
 		camp_timer = rng.randf_range(45, 70)
-		if army_count(game.BANDITS) < 2:
+		if army_count(game.BANDITS) < camps.size():
 			var p: Vector2 = camps[rng.randi() % camps.size()]
 			var list: Array = []
 			for i in rng.randi_range(8, 14):
@@ -410,11 +433,11 @@ func _move(a: Army, delta: float) -> void:
 	a.vel = a.vel.normalized() * speed
 	a.pos += a.vel * delta
 	var r := a.radius()
-	if a.pos.x < r and a.vel.x < 0 or a.pos.x > SIZE.x - r and a.vel.x > 0:
+	if a.pos.x < r and a.vel.x < 0 or a.pos.x > map_size.x - r and a.vel.x > 0:
 		a.vel.x = -a.vel.x
-	if a.pos.y < r and a.vel.y < 0 or a.pos.y > SIZE.y - r and a.vel.y > 0:
+	if a.pos.y < r and a.vel.y < 0 or a.pos.y > map_size.y - r and a.vel.y > 0:
 		a.vel.y = -a.vel.y
-	a.pos = a.pos.clamp(Vector2(r, r), SIZE - Vector2(r, r))
+	a.pos = a.pos.clamp(Vector2(r, r), map_size - Vector2(r, r))
 	a.trail.append(a.pos)
 	if a.trail.size() > 26:
 		a.trail.pop_front()
@@ -532,6 +555,10 @@ func _draw_static() -> void:
 		c.draw_colored_polygon(PackedVector2Array([p + Vector2(0, -18), p + Vector2(8, -15), p + Vector2(0, -12)]), Color("b03030"))
 
 
+func _font(px: int) -> int:
+	return roundi(px * text_scale)
+
+
 func _draw_ink() -> void:
 	var c := ink_layer
 	for s in settlements:
@@ -550,7 +577,7 @@ func _draw_ink() -> void:
 	for p in popups:
 		var col: Color = p["c"]
 		col.a = clampf(p["life"] * 1.5, 0, 1)
-		Ink.text(c, p["p"], p["t"], 12, col, 3)
+		Ink.text(c, p["p"], p["t"], _font(12), col, 3)
 
 
 func _draw_settlement(c: CanvasItem, s: Settlement) -> void:
@@ -573,10 +600,10 @@ func _draw_settlement(c: CanvasItem, s: Settlement) -> void:
 				label = sol.display_name()
 		if label == "" and f.is_kingdom:
 			label = f.name
-		Ink.text(c, s.pos + Vector2(0, -h - 10), label, 12, Color.WHITE, 4)
+		Ink.text(c, s.pos + Vector2(0, -h - 10), label, _font(12), Color.WHITE, 4)
 	else:
-		Ink.text(c, s.pos + Vector2(0, -h - 6), s.produce.capitalize() if s.owner != game.NEUTRAL else "", 9, Color(1, 1, 1, 0.9), 3)
-	Ink.text(c, s.pos + Vector2(0, h + 9), str(s.garrison.size()), 12, Color.WHITE, 4)
+		Ink.text(c, s.pos + Vector2(0, -h - 6), s.produce.capitalize() if s.owner != game.NEUTRAL else "", _font(9), Color(1, 1, 1, 0.9), 3)
+	Ink.text(c, s.pos + Vector2(0, h + 9), str(s.garrison.size()), _font(12), Color.WHITE, 4)
 
 
 func _draw_army(c: CanvasItem, a: Army) -> void:
@@ -584,9 +611,9 @@ func _draw_army(c: CanvasItem, a: Army) -> void:
 	var r := a.radius()
 	c.draw_circle(a.pos + Vector2(2, 3), r, Color(0, 0, 0, 0.25))
 	Ink.circle(c, a.pos, r, f.color, 2.2)
-	Ink.text(c, a.pos, str(a.soldiers.size()), 12, Color.WHITE, 4)
+	Ink.text(c, a.pos, str(a.soldiers.size()), _font(12), Color.WHITE, 4)
 	var l := a.leader()
 	if l:
 		if l.type == "king":
 			Upgrades.draw_icon(c, "crown", a.pos + Vector2(0, -r - 6), 6, Color.WHITE)
-		Ink.text(c, a.pos + Vector2(0, -r - (16 if l.type == "king" else 8)), l.display_name(), 11, Color.WHITE, 3)
+		Ink.text(c, a.pos + Vector2(0, -r - (16 if l.type == "king" else 8)), l.display_name(), _font(11), Color.WHITE, 3)

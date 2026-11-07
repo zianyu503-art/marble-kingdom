@@ -9,6 +9,8 @@ var sfx: Sfx
 var rng := RandomNumberGenerator.new()
 var cards: Array = []
 var towns_spin: SpinBox
+## Town count follows the kingdom count until the player sets it by hand.
+var towns_auto := true
 var bandits_check: CheckBox
 var seed_edit: LineEdit
 var start_btn: Button
@@ -66,6 +68,10 @@ func build(last: Dictionary, sound: Sfx) -> void:
 	towns_spin.min_value = 0
 	towns_spin.max_value = 24
 	towns_spin.value = last.get("towns", 10)
+	towns_auto = not last.has("towns")
+	towns_spin.get_line_edit().text_submitted.connect(func(_t): towns_auto = false)
+	towns_spin.get_line_edit().gui_input.connect(func(e): if e is InputEventKey: towns_auto = false)
+	towns_spin.gui_input.connect(func(e): if e is InputEventMouseButton: towns_auto = false)
 	opts.add_child(towns_spin)
 	bandits_check = CheckBox.new()
 	bandits_check.text = "Bandits"
@@ -172,6 +178,8 @@ func _refresh() -> void:
 		c["panel"].add_theme_stylebox_override("panel", sb)
 		c["panel"].modulate = Color(1, 1, 1, 1.0 if on else 0.75)
 	start_btn.disabled = n < 2
+	if towns_auto:
+		towns_spin.value = clampi(roundi(n * 5.0 / 3.0), 3, 24)
 	warn.text = "Pick at least 2 kingdoms" if n < 2 else "%d kingdoms selected" % n
 
 
