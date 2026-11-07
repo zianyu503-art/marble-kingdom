@@ -22,6 +22,19 @@ func _ready() -> void:
 				dir = a.substr(8)
 		await get_tree().process_frame
 		screen._action("random")
+		if "--castletest" in args:
+			# worst case: a giant level-10 king must walk through the gate
+			screen.cfg["sides"] = [{"color": 0, "level": 10, "ups": {"giant": true}, "units": {"king": 1}},
+				{"color": 1, "level": 0, "ups": {}, "units": {"archer": 4, "fighter": 4}}]
+			screen.cfg["terrain"] = 4
+			screen.setup_ui.queue_free()
+			screen._start_fight()
+			screen.setup_ui = null
+			while screen.result.is_empty():
+				await get_tree().process_frame
+			print("castle test: winner %d, %.1fs, unstuck %d" % [screen.result["winner"], screen.battle.elapsed, screen.battle.stat_escapes])
+			get_tree().quit()
+			return
 		await get_tree().create_timer(0.5).timeout
 		get_viewport().get_texture().get_image().save_png(dir + "/arena_setup.png")
 		screen._fight()

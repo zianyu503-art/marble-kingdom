@@ -29,6 +29,9 @@ var texts: Array = []
 var decor: Array = []
 var obstacles: Array = []
 var floor_rect := Rect2()
+## Castle only: the gate centres and the walled area they lead into.
+var gates: Array = []
+var keep_rect := Rect2()
 var running := false
 var ended := false
 var elapsed := 0.0
@@ -118,6 +121,8 @@ func _clear() -> void:
 	decor.clear()
 	obstacles.clear()
 	floor_rect = Rect2()
+	gates = []
+	keep_rect = Rect2()
 
 
 # --------------------------------------------------------------- terrain
@@ -157,13 +162,16 @@ func _build_terrain() -> void:
 			floor_rect = Rect2(430, 80, 290, 560)
 			_wall(Rect2(430, 80, 290, 18), "wall")
 			_wall(Rect2(430, 622, 290, 18), "wall")
-			_wall(Rect2(430, 98, 18, 150), "wall")
+			# two gates, each wide enough for the biggest marble (a giant high-level king)
+			_wall(Rect2(430, 98, 18, 100), "wall")
 			_wall(Rect2(430, 318, 18, 84), "wall")
-			_wall(Rect2(430, 472, 18, 150), "wall")
+			_wall(Rect2(430, 522, 18, 100), "wall")
 			_round(Vector2(439, 89), 30, "tower")
 			_round(Vector2(439, 631), 30, "tower")
-			_round(Vector2(439, 248), 16, "tower")
-			_round(Vector2(439, 472), 16, "tower")
+			_round(Vector2(439, 198), 16, "tower")
+			_round(Vector2(439, 522), 16, "tower")
+			gates = [Vector2(439, 266), Vector2(439, 454)]
+			keep_rect = Rect2(430, 80, 290, 560)
 			king_home = Vector2(660, 360)
 			obstacles.append({"k": "throne", "r": Rect2(672, 330, 40, 60)})
 			for i in 260:

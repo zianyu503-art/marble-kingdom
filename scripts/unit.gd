@@ -312,15 +312,51 @@ func _wall_ray(from: Vector2, to: Vector2) -> Dictionary:
 	return get_world_2d().direct_space_state.intersect_ray(q)
 
 
+## How far the whole marble can travel along d, up to LOOK: rays from its centre
+## and both sides, so a gap narrower than the marble doesn't count as open.
+func _free_distance(p: Vector2, d: Vector2) -> float:
+	var free := LOOK
+	var side_offset := d.orthogonal() * radius * 0.95
+	for o in [Vector2.ZERO, side_offset, -side_offset]:
+		var hit := _wall_ray(p + o, p + o + d * LOOK)
+		if not hit.is_empty():
+			free = minf(free, hit["position"].distance_to(p + o))
+	return free
+
+
+## In a castle, the point just past the best gate when the walls separate this
+## marble from `to`; Vector2.INF when no gate is needed.
+func _gate_toward(to: Vector2) -> Vector2:
+	var keep: Rect2 = battle.keep_rect
+	var p := global_position
+	if battle.gates.is_empty() or keep.has_point(p) == keep.has_point(to):
+		return Vector2.INF
+	var best := Vector2.INF
+	var best_d := INF
+	for g in battle.gates:
+		var d: float = p.distance_to(g) + g.distance_to(to)
+		if d < best_d:
+			best_d = d
+			best = g
+	# aim beyond the gate so the marble goes through instead of stopping in it
+	var past := -60.0 if keep.has_point(p) else 60.0
+	return best + Vector2(past, 0)
+
+
 ## Context steering: score 16 directions by how well they lead to the goal
 ## and how far they are free of walls, then pick the best one.
 func _update_steer() -> void:
 	var p := global_position
 	var goal := Vector2.ZERO
 	var flee := false
+	var via_gate := false
 	if target and is_instance_valid(target) and not target.dead:
 		goal = target.global_position - p
 		has_los = _wall_ray(p, target.global_position).is_empty()
+		var gate := _gate_toward(target.global_position)
+		if gate != Vector2.INF and not has_los:
+			goal = gate - p
+			via_gate = true
 		if (ranged != "" or stats.get("support", false)) and has_los and goal.length() < 200.0:
 			flee = true
 	elif side == 1 and soldier.type == "king":
@@ -338,15 +374,14 @@ func _update_steer() -> void:
 		steer = t.orthogonal() * 0.5
 		return
 	# straight line is open: just go
-	if _wall_ray(p, p + t * LOOK).is_empty() and (flee or has_los):
+	if _free_distance(p, t) >= LOOK and (flee or has_los or via_gate):
 		steer = t
 		return
 	var best := t
 	var best_score := -INF
 	for i in STEER_DIRS:
 		var d := Vector2.from_angle(i * TAU / STEER_DIRS)
-		var hit := _wall_ray(p, p + d * LOOK)
-		var clear: float = 1.0 if hit.is_empty() else (hit["position"].distance_to(p) - radius) / LOOK
+		var clear := maxf(0.0, _free_distance(p, d) - radius) / LOOK
 		var score := (0.55 + 0.45 * d.dot(t)) * clear * clear + 0.15 * d.dot(steer)
 		if score > best_score:
 			best_score = score
@@ -365,7 +400,7 @@ func _check_stuck(delta: float) -> void:
 		var moved := global_position.distance_to(stuck_pos)
 		stuck_pos = global_position
 		if moved < 10.0 and steer != Vector2.ZERO and target and is_instance_valid(target) \
-				and global_position.distance_to(target.global_position) > radius + target.radius + 40.0:
+				and global_position.distance_to(target.global_position) > radius + target.radius + 60.0:
 			escape_dir = steer.rotated(randf_range(PI * 0.5, PI * 1.5))
 			escape_time = 0.6
 			battle.stat_escapes += 1
