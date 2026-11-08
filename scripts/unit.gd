@@ -339,8 +339,8 @@ func _gate_toward(to: Vector2) -> Vector2:
 			best_d = d
 			best = g
 	# aim beyond the gate so the marble goes through instead of stopping in it
-	var past := -60.0 if keep.has_point(p) else 60.0
-	return best + Vector2(past, 0)
+	var out: Vector2 = battle.gate_out
+	return best + (out * 60.0 if keep.has_point(p) else -out * 60.0)
 
 
 ## Context steering: score 16 directions by how well they lead to the goal

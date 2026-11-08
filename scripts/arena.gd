@@ -8,7 +8,7 @@ signal back_to_menu
 const TYPES := ["fighter", "footman", "spearman", "knight", "berserker", "hammerman", "archer", "crossbowman",
 	"mage", "monk", "bard", "necromancer", "farmer", "kingsguard", "captain", "king", "bandit", "villager"]
 const UPS := ["sharp", "regen", "giant", "haste", "vitality", "armor", "vampirism", "spectral", "dash", "thorns", "volley", "whirl"]
-const TERRAINS := ["field", "forest", "mountain", "river", "castle", "town"]
+const TERRAINS := ["field", "forest", "mountain", "river", "castle", "town", "lake"]
 const MAX_UNITS := 60
 
 static var cfg := {}

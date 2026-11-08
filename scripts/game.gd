@@ -36,7 +36,10 @@ var over := false
 var ranking: Array = []
 var fallen: Array = []
 var current := {}
-var map_tween: Tween
+## World-map camera: zoomed in on the action while the map has the full screen.
+const CAM_ZOOM := 1.5
+var map_small := false
+var cam_focus := Vector2(-1, -1)
 var winner_panel: Control
 
 
@@ -165,6 +168,7 @@ func _make_box() -> SubViewportContainer:
 
 func _process(delta: float) -> void:
 	hud.queue_redraw()
+	_update_camera(delta)
 	if get_tree().paused:
 		speed_label.text = "PAUSED"
 		return
@@ -236,11 +240,28 @@ func _end_focus() -> void:
 
 
 func _tween_map(small: bool) -> void:
-	if map_tween:
-		map_tween.kill()
-	map_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	map_tween.tween_property(world, "position", MAP_SMALL_POS if small else Vector2.ZERO, 0.35)
-	map_tween.tween_property(world, "scale", Vector2.ONE * world.view_scale * (MAP_SMALL_SCALE if small else 1.0), 0.35)
+	map_small = small
+
+
+## Eases the map toward its target view each frame: the small inset during
+## battles and decisions, otherwise zoomed in and drifting after the action.
+func _update_camera(delta: float) -> void:
+	var real := delta / maxf(Engine.time_scale, 0.01)
+	if cam_focus.x < 0.0:
+		cam_focus = world.map_size * 0.5
+	var tgt_scale: float
+	var tgt_pos: Vector2
+	if map_small or over:
+		tgt_scale = world.view_scale * (MAP_SMALL_SCALE if map_small else 1.0)
+		tgt_pos = MAP_SMALL_POS if map_small else Vector2.ZERO
+	else:
+		cam_focus = cam_focus.lerp(world.interest_point(), 1.0 - exp(-real * 1.5))
+		tgt_scale = world.view_scale * CAM_ZOOM
+		tgt_pos = WorldMap.VIEW * 0.5 - cam_focus * tgt_scale
+		tgt_pos = tgt_pos.clamp(WorldMap.VIEW - world.map_size * tgt_scale, Vector2.ZERO)
+	var k := 1.0 - exp(-real * 6.0)
+	world.scale = world.scale.lerp(Vector2.ONE * tgt_scale, k)
+	world.position = world.position.lerp(tgt_pos, k)
 
 
 func _queue_upgrade(fid: int, title: String, sub: String) -> void:

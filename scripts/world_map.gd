@@ -70,11 +70,16 @@ var forests: Array = []
 var roads: Array = []
 var river: PackedVector2Array
 var camps: Array = []
+## Lakes: groups of overlapping circles {"p", "r"}; battles there use the lake terrain.
+var lakes: Array = []
 var popups: Array = []
 var paused := true
 var battle_marker := Vector2(-1, -1)
 var next_id := 1
 var camp_timer := 25.0
+## Where the camera should look: the latest event, else the armies' centre.
+var interest_p := Vector2.ZERO
+var interest_age := 999.0
 var bg: ColorRect
 var ink_layer: Node2D
 ## The parchment, territories and fixed landmarks are rendered once into this
@@ -140,6 +145,7 @@ func generate(kingdom_count: int, town_count: int, seed_value: int) -> void:
 	forests.clear()
 	roads.clear()
 	camps.clear()
+	lakes.clear()
 	popups.clear()
 	var placed: Array = []
 	# capitals spread out around the map
@@ -189,6 +195,15 @@ func generate(kingdom_count: int, town_count: int, seed_value: int) -> void:
 			var p := c + Vector2(rng.randf_range(-55, 55), rng.randf_range(-35, 35))
 			if _far(p, placed, 26.0):
 				forests.append({"p": p, "s": rng.randf_range(5, 8)})
+	for i in maxi(1, roundi(2.0 * area)):
+		for k in 200:
+			var p := Vector2(rng.randf_range(80, map_size.x - 80), rng.randf_range(80, map_size.y - 80))
+			if _far(p, placed, 75.0) and _far(p, lakes.map(func(l): return l["p"]), 120.0):
+				var blob: Array = []
+				for j in rng.randi_range(3, 5):
+					blob.append({"p": p + Vector2(rng.randf_range(-22, 22), rng.randf_range(-12, 12)), "r": rng.randf_range(14, 24)})
+				lakes.append({"p": p, "blob": blob})
+				break
 	if game.bandits_enabled:
 		for i in maxi(1, roundi(2.0 * area)):
 			for k in 200:
@@ -265,6 +280,10 @@ func terrain_at(p: Vector2) -> String:
 	for s in settlements:
 		if s.pos.distance_to(p) < s.half() + 22.0:
 			return "castle" if s.kind == "city" else "town"
+	for l in lakes:
+		for b in l["blob"]:
+			if b["p"].distance_to(p) < b["r"] + 14.0:
+				return "lake"
 	for f in forests:
 		if f["p"].distance_to(p) < 30.0:
 			return "forest"
@@ -290,6 +309,7 @@ func spawn_army(pos: Vector2, owner: int, soldiers: Array) -> Army:
 	a.turn = rng.randf_range(-0.3, 0.3)
 	a.immune = 1.0
 	armies.append(a)
+	note_interest(pos)
 	return a
 
 
@@ -347,7 +367,24 @@ func _process(delta: float) -> void:
 	ink_layer.queue_redraw()
 
 
+func note_interest(p: Vector2) -> void:
+	interest_p = p
+	interest_age = 0.0
+
+
+func interest_point() -> Vector2:
+	if interest_age < 8.0:
+		return interest_p
+	if armies.is_empty():
+		return map_size * 0.5
+	var sum := Vector2.ZERO
+	for a in armies:
+		sum += a.pos
+	return sum / armies.size()
+
+
 func _simulate(delta: float) -> void:
+	interest_age += delta
 	_produce(delta)
 	_bandits(delta)
 	for a in armies:
@@ -467,6 +504,7 @@ func _collide() -> void:
 			if b.immune > 0.0 or not can_fight(a.owner, b.owner):
 				continue
 			if a.pos.distance_to(b.pos) < a.radius() + b.radius():
+				note_interest((a.pos + b.pos) * 0.5)
 				encounter.emit("army", a, b)
 				return
 		for s in settlements:
@@ -479,9 +517,11 @@ func _collide() -> void:
 			elif not can_fight(a.owner, s.owner):
 				bounce_from(a, s.pos)
 			elif s.garrison.is_empty():
+				note_interest(s.pos)
 				encounter.emit("capture", a, s)
 				return
 			else:
+				note_interest(s.pos)
 				encounter.emit("siege", a, s)
 				return
 
@@ -519,6 +559,13 @@ func bounce_from(a: Army, p: Vector2) -> void:
 ## River, roads, mountains, forests and camps (baked, see bake_vp).
 func _draw_static() -> void:
 	var c := static_layer
+	for l in lakes:
+		for b in l["blob"]:
+			c.draw_circle(b["p"], b["r"] + 2.0, Ink.BLACK)
+		for b in l["blob"]:
+			c.draw_circle(b["p"], b["r"], Color("9cc6ef"))
+		for b in l["blob"]:
+			c.draw_circle(b["p"] + Vector2(b["r"] * 0.3, -b["r"] * 0.2), 2.5, Color("6aa84f"))
 	var ink := Ink.BLACK
 	# river
 	if river.size() > 1:
@@ -588,22 +635,20 @@ func _draw_settlement(c: CanvasItem, s: Settlement) -> void:
 	c.draw_rect(Rect2(r.position + Vector2(3, 3), r.size), Color(0, 0, 0, 0.25))
 	Ink.box(c, r, f.color, 2.2)
 	if s.kind == "city":
-		# little keep with battlements
-		var k := Rect2(s.pos + Vector2(-7, -4), Vector2(14, 11))
-		c.draw_rect(k, Color(1, 1, 1, 0.85))
-		c.draw_rect(k, Ink.BLACK, false, 1.2)
-		for i in 3:
-			c.draw_rect(Rect2(s.pos + Vector2(-7 + i * 5.5, -8), Vector2(3, 4)), Ink.BLACK)
+		# battlements along the top edge mark a city
+		for i in 4:
+			Ink.box(c, Rect2(r.position + Vector2(1 + i * h * 0.5, -5), Vector2(h * 0.3, 5)), f.color, 1.2)
 		var label := ""
 		for sol in s.garrison:
 			if sol.type == "king":
 				label = sol.display_name()
 		if label == "" and f.is_kingdom:
 			label = f.name
-		Ink.text(c, s.pos + Vector2(0, -h - 10), label, _font(12), Color.WHITE, 4)
+		Ink.text(c, s.pos + Vector2(0, -h - 13), label, _font(12), Color.WHITE, 4)
 	else:
 		Ink.text(c, s.pos + Vector2(0, -h - 6), s.produce.capitalize() if s.owner != game.NEUTRAL else "", _font(9), Color(1, 1, 1, 0.9), 3)
-	Ink.text(c, s.pos + Vector2(0, h + 9), str(s.garrison.size()), _font(12), Color.WHITE, 4)
+	# troop count inside the square, as in the series
+	Ink.text(c, s.pos, str(s.garrison.size()), _font(14 if s.kind == "city" else 10), Color.WHITE, 4)
 
 
 func _draw_army(c: CanvasItem, a: Army) -> void:

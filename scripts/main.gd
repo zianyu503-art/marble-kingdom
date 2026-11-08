@@ -27,9 +27,14 @@ func _ready() -> void:
 			screen.cfg["sides"] = [{"color": 0, "level": 10, "ups": {"giant": true}, "units": {"king": 1}},
 				{"color": 1, "level": 0, "ups": {}, "units": {"archer": 4, "fighter": 4}}]
 			screen.cfg["terrain"] = 4
+			for a in args:
+				if a.begins_with("--terrain="):
+					screen.cfg["terrain"] = a.substr(10).to_int()
 			screen.setup_ui.queue_free()
 			screen._start_fight()
 			screen.setup_ui = null
+			await get_tree().create_timer(3.0).timeout
+			get_viewport().get_texture().get_image().save_png("%s/terrain_%d.png" % [dir, screen.cfg["terrain"]])
 			while screen.result.is_empty():
 				await get_tree().process_frame
 			print("castle test: winner %d, %.1fs, unstuck %d" % [screen.result["winner"], screen.battle.elapsed, screen.battle.stat_escapes])
@@ -128,6 +133,12 @@ func _capture_loop(dir: String) -> void:
 	get_tree().process_frame.connect(sample)
 	var mem0 := Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0
 	var count := 36 if "--long" in OS.get_cmdline_user_args() else 12
+	if "--early" in OS.get_cmdline_user_args():
+		# one frame on the opening world map, before the first battle
+		await get_tree().create_timer(2.5, true, false, true).timeout
+		get_viewport().get_texture().get_image().save_png("%s/early.png" % dir)
+		get_tree().quit()
+		return
 	for i in count:
 		await get_tree().create_timer(5.0, true, false, true).timeout
 		get_viewport().get_texture().get_image().save_png("%s/shot_%02d.png" % [dir, i])

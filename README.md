@@ -22,8 +22,9 @@ remake, built in Godot 4.6, and is not affiliated with Lost Marbles.
   city musters a new army led by a captain. An army reinforces and heals when it reaches a
   friendly settlement.
 - **Battles**: when two enemy armies meet, or an army attacks a town, the battle opens on a
-  terrain picked from that spot on the map: field, forest, mountain, river with bridges,
-  castle, or town.
+  terrain picked from that spot on the map: field, forest, mountain, river with bridges, lake,
+  castle (keep and great hall at the top, one gate), or town. While no battle is on, the map
+  camera zooms in and follows the latest action.
 - **Marble physics**: every marble is a `RigidBody2D`. Its weapon is a separate rigid body,
   driven by force and torque toward its pose in the marble's hand. It follows the marble's
   spin, and when an enemy is in reach it attacks: spears, halberds and pitchforks **thrust**,

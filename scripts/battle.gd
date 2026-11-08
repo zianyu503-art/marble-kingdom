@@ -32,6 +32,10 @@ var floor_rect := Rect2()
 ## Castle only: the gate centres and the walled area they lead into.
 var gates: Array = []
 var keep_rect := Rect2()
+## Direction from inside the keep out through its gate.
+var gate_out := Vector2.LEFT
+## Lake terrain: water circles {"p", "rad"} and lily pads on them.
+var ponds: Array = []
 var running := false
 var ended := false
 var elapsed := 0.0
@@ -123,6 +127,8 @@ func _clear() -> void:
 	floor_rect = Rect2()
 	gates = []
 	keep_rect = Rect2()
+	gate_out = Vector2.LEFT
+	ponds = []
 
 
 # --------------------------------------------------------------- terrain
@@ -159,23 +165,30 @@ func _build_terrain() -> void:
 				y = b + 40
 			_wall(Rect2(320, y, 80, SIZE.y - y), "water")
 		"castle":
-			floor_rect = Rect2(430, 80, 290, 560)
-			_wall(Rect2(430, 80, 290, 18), "wall")
-			_wall(Rect2(430, 622, 290, 18), "wall")
-			# two gates, each wide enough for the biggest marble (a giant high-level king)
-			_wall(Rect2(430, 98, 18, 100), "wall")
-			_wall(Rect2(430, 318, 18, 84), "wall")
-			_wall(Rect2(430, 522, 18, 100), "wall")
-			_round(Vector2(439, 89), 30, "tower")
-			_round(Vector2(439, 631), 30, "tower")
-			_round(Vector2(439, 198), 16, "tower")
-			_round(Vector2(439, 522), 16, "tower")
-			gates = [Vector2(439, 266), Vector2(439, 454)]
-			keep_rect = Rect2(430, 80, 290, 560)
-			king_home = Vector2(660, 360)
-			obstacles.append({"k": "throne", "r": Rect2(672, 330, 40, 60)})
-			for i in 260:
-				decor.append({"k": "cobble", "p": Vector2(rng.randf_range(450, 715), rng.randf_range(100, 620)), "s": rng.randf_range(8, 14)})
+			# the keep is at the top: a wooden great hall between two big round
+			# towers; the courtyard is closed by a wall with one gate at the bottom
+			floor_rect = Rect2(0, 0, 720, 482)
+			_wall(Rect2(250, 0, 220, 92), "hall")
+			_round(Vector2(195, 62), 52, "tower")
+			_round(Vector2(525, 62), 52, "tower")
+			_wall(Rect2(0, 44, 145, 24), "wall")
+			_wall(Rect2(575, 44, 145, 24), "wall")
+			_wall(Rect2(0, 470, 270, 22), "wall")
+			_wall(Rect2(450, 470, 270, 22), "wall")
+			_round(Vector2(270, 481), 26, "tower")
+			_round(Vector2(450, 481), 26, "tower")
+			_round(Vector2(24, 481), 30, "tower")
+			_round(Vector2(696, 481), 30, "tower")
+			gates = [Vector2(360, 481)]
+			gate_out = Vector2(0, 1)
+			keep_rect = Rect2(0, 0, 720, 481)
+			king_home = Vector2(360, 140)
+			for c in [Vector2(170, 290), Vector2(550, 290), Vector2(360, 330)]:
+				for k in 7:
+					decor.append({"k": "ring", "p": c, "r": 24.0 + k * 20.0})
+		"lake":
+			for i in 6:
+				_pond(Vector2(360 + rng.randf_range(-80, 80), 360 + rng.randf_range(-160, 160)), rng.randf_range(55, 80))
 		"town":
 			floor_rect = Rect2(420, 60, 300, 600)
 			var spots := [Vector2(500, 150), Vector2(620, 220), Vector2(520, 360), Vector2(640, 470), Vector2(510, 560)]
@@ -203,6 +216,21 @@ func _wall(r: Rect2, kind: String) -> void:
 	static_root.add_child(b)
 	if kind != "edge":
 		obstacles.append({"k": kind, "r": r})
+
+
+func _pond(p: Vector2, r: float) -> void:
+	var b := StaticBody2D.new()
+	var cs := CollisionShape2D.new()
+	var shape := CircleShape2D.new()
+	shape.radius = r
+	cs.shape = shape
+	b.position = p
+	b.add_child(cs)
+	static_root.add_child(b)
+	var lilies: Array = []
+	for i in 4:
+		lilies.append({"p": p + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0, r - 12), "a": rng.randf() * TAU})
+	ponds.append({"p": p, "rad": r, "lilies": lilies})
 
 
 func _round(p: Vector2, r: float, kind: String) -> void:
@@ -237,6 +265,15 @@ func _spawn_side(soldiers: Array, f: Faction, side: int) -> void:
 		var col := i / rows
 		var row := i % rows
 		var x: float
+		if terrain == "castle":
+			# attackers come up from below the gate; defenders hold the courtyard
+			var cy := 560.0 + col * 44.0 if side == 0 else 210.0 + col * 40.0
+			var cx := 360.0 + (row - (mini(rows, n) - 1) * 0.5) * 58.0 + rng.randf_range(-6, 6)
+			if s.type == "king" and side == 1:
+				cx = king_home.x
+				cy = king_home.y
+			_add_unit(s, f, side, Vector2(clampf(cx, 36, 684), clampf(cy, 36, 684)), Vector2(0, -60 if side == 0 else 60))
+			continue
 		if side == 0:
 			x = 230.0 - col * 44.0
 		elif inside:
@@ -248,13 +285,17 @@ func _spawn_side(soldiers: Array, f: Faction, side: int) -> void:
 		if s.type == "king" and side == 1 and terrain == "castle":
 			x = king_home.x - 40
 			y = king_home.y
-		var u := Unit.new()
-		u.position = Vector2(x, y)
-		u.setup(s, f, self, side)
-		u.linear_velocity = Vector2(1 if side == 0 else -1, 0) * 60.0
-		unit_root.add_child(u)
-		u.arm(unit_root)
-		units.append(u)
+		_add_unit(s, f, side, Vector2(x, y), Vector2(1 if side == 0 else -1, 0) * 60.0)
+
+
+func _add_unit(s: Soldier, f: Faction, side: int, pos: Vector2, vel: Vector2) -> void:
+	var u := Unit.new()
+	u.position = pos
+	u.setup(s, f, self, side)
+	u.linear_velocity = vel
+	unit_root.add_child(u)
+	u.arm(unit_root)
+	units.append(u)
 
 
 func _rank(s: Soldier) -> int:
@@ -632,11 +673,30 @@ func _draw_ground() -> void:
 					g.draw_circle(d["p"], 2.2, d["c"])
 			"bush":
 				Ink.circle(g, d["p"], d["s"], Color("8cc463"), 1.4)
+			"ring":
+				g.draw_arc(d["p"], d["r"], 0, TAU, 48, Color(0.55, 0.53, 0.5, 0.45), 1.3)
 			"cobble":
 				var cr := Rect2(d["p"], Vector2(d["s"], d["s"] * 0.7))
 				g.draw_rect(cr, Color(0.6, 0.58, 0.55, 0.5), false, 1.0)
+	for pd in ponds:
+		g.draw_circle(pd["p"], pd["rad"] + 3.0, Ink.BLACK)
+	for pd in ponds:
+		g.draw_circle(pd["p"], pd["rad"], WATER)
+	for pd in ponds:
+		for l in pd["lilies"]:
+			g.draw_circle(l["p"], 8.0, Color("6aa84f"))
+			g.draw_colored_polygon(PackedVector2Array([l["p"], l["p"] + Vector2.from_angle(l["a"] - 0.35) * 9.0, l["p"] + Vector2.from_angle(l["a"] + 0.35) * 9.0]), WATER)
+			g.draw_arc(l["p"], 8.0, l["a"] + 0.35, l["a"] + TAU - 0.35, 12, Color("3d6b2a"), 1.2)
 	for o in obstacles:
 		match o["k"]:
+			"hall":
+				var r: Rect2 = o["r"]
+				Ink.box(g, r, Color("a9744a"), 2.5)
+				for k in int(r.size.x / 14):
+					var x := r.position.x + k * 14
+					g.draw_line(Vector2(x, r.position.y), Vector2(x, r.end.y), Color("7a4f2c"), 1.2)
+				g.draw_line(r.position + Vector2(0, r.size.y * 0.55), r.position + Vector2(r.size.x * 0.5, 4), Ink.BLACK, 2)
+				g.draw_line(r.position + Vector2(r.size.x, r.size.y * 0.55), r.position + Vector2(r.size.x * 0.5, 4), Ink.BLACK, 2)
 			"water":
 				var r: Rect2 = o["r"]
 				g.draw_rect(r, WATER)
